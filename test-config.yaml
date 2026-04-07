@@ -1,0 +1,25 @@
+topic: "CPU AI acceleration"
+
+venues:
+  - id: ISCA
+    type: conference
+    dblp_key: conf/isca
+  - id: MICRO
+    type: conference
+    dblp_key: conf/micro
+
+date_range:
+  start: 2024
+  end: 2024
+
+enrichment:
+  s2:
+    enabled: true
+  crossref:
+    enabled: true
+  arxiv:
+    enabled: true
+
+keywords: ["CPU", "tensor", "matrix", "AI", "accelerator", "AMX", "SME", "RISC-V"]
+update:
+  overlap_years: 1

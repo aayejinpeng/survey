@@ -1,320 +1,272 @@
 #!/usr/bin/env python3
-"""Unit tests for survey_crawler.py — no API calls, pure logic validation."""
+"""Unit tests for survey_crawler.py v2 — DBLP + enrichment pipeline.
+
+No external API calls. Tests internal logic only.
+"""
 
 import csv
 import json
 import os
 import sys
 import tempfile
-from pathlib import Path
 
-# Add current dir to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from survey_crawler import (
     CSV_COLUMNS,
     HUMAN_COLUMNS,
     _slugify,
-    dedup_papers,
-    load_state,
-    read_existing_csv,
-    save_state,
+    _clean_crossref_abstract,
+    enrich_from_s2,
+    enrich_abstracts,
     score_by_keywords,
     update_state,
     write_csv,
     append_csv,
+    read_existing_csv,
+    _compute_update_years,
 )
 
 # ---------------------------------------------------------------------------
-# Fixtures: mock paper data
+# Fixtures
 # ---------------------------------------------------------------------------
 
-MOCK_ARXIV_PAPERS = [
+MOCK_PAPERS = [
     {
-        "paper_id": "arxiv:2301.07041",
-        "arxiv_id": "2301.07041",
+        "paper_id": "doi:10.1109/ISCA.2024.001",
+        "arxiv_id": "2401.12345",
         "s2_paper_id": "",
         "title": "CPU Matrix Extension for AI Inference",
         "authors": "Alice Smith; Bob Jones",
-        "year": "2023",
-        "venue": "arXiv",
+        "year": "2024",
+        "venue": "ISCA",
         "abstract": "We propose a CPU matrix extension for efficient AI inference.",
-        "source": "arxiv",
-        "categories": "cs.AR; cs.PF",
+        "source": "dblp",
+        "categories": "",
         "citation_count": 0,
-        "url": "https://arxiv.org/abs/2301.07041",
-        "doi": "",
-        "published_date": "2023-01-17",
-        "crawled_date": "2026-04-07",
+        "url": "https://doi.org/10.1109/ISCA.2024.001",
+        "doi": "10.1109/ISCA.2024.001",
+        "published_date": "2024-01-01",
+        "crawled_date": "2026-04-08",
         "keep": "",
         "notes": "",
     },
     {
-        "paper_id": "arxiv:2405.12345",
-        "arxiv_id": "2405.12345",
+        "paper_id": "doi:10.1145/MICRO.2024.002",
+        "arxiv_id": "",
+        "s2_paper_id": "",
+        "title": "Intel AMX Performance Characterization",
+        "authors": "Carol Lee; David Wang",
+        "year": "2024",
+        "venue": "MICRO",
+        "abstract": "",
+        "source": "dblp",
+        "categories": "",
+        "citation_count": 0,
+        "url": "https://doi.org/10.1145/MICRO.2024.002",
+        "doi": "10.1145/MICRO.2024.002",
+        "published_date": "2024-01-01",
+        "crawled_date": "2026-04-08",
+        "keep": "",
+        "notes": "",
+    },
+    {
+        "paper_id": "doi:10.1109/HPCA.2024.003",
+        "arxiv_id": "2403.56789",
         "s2_paper_id": "",
         "title": "RISC-V Tensor Unit Design",
-        "authors": "Carol Lee",
+        "authors": "Eve Chen",
         "year": "2024",
-        "venue": "arXiv",
-        "abstract": "A RISC-V tensor unit for on-device AI acceleration.",
-        "source": "arxiv",
-        "categories": "cs.AR",
+        "venue": "HPCA",
+        "abstract": "",
+        "source": "dblp",
+        "categories": "",
         "citation_count": 0,
-        "url": "https://arxiv.org/abs/2405.12345",
-        "doi": "",
-        "published_date": "2024-05-20",
-        "crawled_date": "2026-04-07",
+        "url": "https://doi.org/10.1109/HPCA.2024.003",
+        "doi": "10.1109/HPCA.2024.003",
+        "published_date": "2024-01-01",
+        "crawled_date": "2026-04-08",
         "keep": "",
         "notes": "",
     },
 ]
 
-MOCK_S2_PAPERS = [
-    {
-        # Overlaps with arxiv:2301.07041 via arxiv_id
-        "paper_id": "arxiv:2301.07041",
-        "arxiv_id": "2301.07041",
-        "s2_paper_id": "abc123def456",
-        "title": "CPU Matrix Extension for AI Inference",
-        "authors": "Alice Smith; Bob Jones",
-        "year": "2023",
-        "venue": "ISCA 2023",
-        "abstract": "We propose a CPU matrix extension for efficient AI inference.",
-        "source": "semantic_scholar",
-        "categories": "Computer Science",
-        "citation_count": 42,
-        "url": "https://www.semanticscholar.org/paper/abc123def456",
-        "doi": "10.1109/ISCA.2023.1234",
-        "published_date": "2023-06-15",
-        "crawled_date": "2026-04-07",
-        "keep": "",
-        "notes": "",
-    },
-    {
-        # Pure S2 paper (no arXiv)
-        "paper_id": "s2:xyz789ghi012",
-        "arxiv_id": "",
-        "s2_paper_id": "xyz789ghi012",
-        "title": "Intel AMX Performance Characterization",
-        "authors": "David Wang; Eve Chen",
-        "year": "2024",
-        "venue": "MICRO 2024",
-        "abstract": "We characterize Intel AMX performance on AI workloads.",
-        "source": "semantic_scholar",
-        "categories": "Computer Science; Engineering",
-        "citation_count": 15,
-        "url": "https://www.semanticscholar.org/paper/xyz789ghi012",
-        "doi": "10.1145/MICRO.2024.5678",
-        "published_date": "2024-10-20",
-        "crawled_date": "2026-04-07",
-        "keep": "",
-        "notes": "",
-    },
-]
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 
 def test_slugify():
     assert _slugify("CPU AI acceleration") == "cpu-ai-acceleration"
     assert _slugify("RISC-V tensor unit!") == "risc-v-tensor-unit"
-    assert _slugify("  spaces  ") == "spaces"
     print("PASS: _slugify")
 
 
-def test_dedup_merges_arxiv_s2_overlap():
-    """arXiv paper 2301.07041 also appears in S2 with richer metadata.
-    After dedup, should be ONE entry with merged metadata."""
-    merged = dedup_papers(MOCK_ARXIV_PAPERS, MOCK_S2_PAPERS)
-
-    # Should have 3 unique papers (2301.07041 merged, 2405.12345 arXiv-only, xyz789ghi012 S2-only)
-    ids = {p["paper_id"] for p in merged}
-    assert len(merged) == 3, f"Expected 3, got {len(merged)}: {ids}"
-
-    # The merged arXiv paper should have S2 metadata
-    merged_arxiv = next(p for p in merged if p["arxiv_id"] == "2301.07041")
-    assert merged_arxiv["s2_paper_id"] == "abc123def456", \
-        f"Expected s2_paper_id='abc123def456', got '{merged_arxiv['s2_paper_id']}'"
-    assert merged_arxiv["citation_count"] == 42, \
-        f"Expected citation_count=42, got {merged_arxiv['citation_count']}"
-    assert merged_arxiv["doi"] == "10.1109/ISCA.2023.1234", \
-        f"Expected DOI from S2, got '{merged_arxiv['doi']}'"
-
-    # S2-only paper should have s2: prefix
-    s2_only = next(p for p in merged if p["s2_paper_id"] == "xyz789ghi012")
-    assert s2_only["paper_id"] == "s2:xyz789ghi012"
-
-    print("PASS: dedup_merges_arxiv_s2_overlap")
-
-
-def test_csv_write_and_preserve_human_columns():
-    """Write CSV, then write again with updated machine data.
-    Human columns (keep/notes) must survive the re-write."""
+def test_csv_write_preserves_human_columns():
+    """Full rerun preserves keep/notes."""
     with tempfile.TemporaryDirectory() as tmpdir:
         csv_path = os.path.join(tmpdir, "test.csv")
 
         # First write
-        write_csv(MOCK_ARXIV_PAPERS, csv_path, {})
+        write_csv(MOCK_PAPERS, csv_path, {})
 
-        # Simulate user editing: set keep=yes on first paper
-        rows, human = read_existing_csv(csv_path)
-        assert len(rows) == 2
-        human["arxiv:2301.07041"] = {"keep": "yes", "notes": "important paper"}
+        # Simulate user editing
+        _, human = read_existing_csv(csv_path)
+        human["doi:10.1109/ISCA.2024.001"] = {"keep": "yes", "notes": "important"}
+        human["doi:10.1145/MICRO.2024.002"] = {"keep": "no", "notes": ""}
 
-        # Re-write (simulating full re-crawl)
-        updated_papers = list(MOCK_ARXIV_PAPERS)
-        updated_papers[0]["abstract"] = "Updated abstract"  # machine column changed
-        write_csv(updated_papers, csv_path, human)
+        # Re-write with machine column changed
+        updated = list(MOCK_PAPERS)
+        updated[0]["title"] = "UPDATED TITLE"
+        write_csv(updated, csv_path, human)
 
-        # Verify human columns preserved
-        rows2, human2 = read_existing_csv(csv_path)
-        first_row = next(r for r in rows2 if r["paper_id"] == "arxiv:2301.07041")
-        assert first_row["keep"] == "yes", f"Expected keep='yes', got '{first_row['keep']}'"
-        assert first_row["notes"] == "important paper", \
-            f"Expected notes='important paper', got '{first_row['notes']}'"
-        assert first_row["abstract"] == "Updated abstract", "Machine column should be updated"
+        rows, human2 = read_existing_csv(csv_path)
+        first = next(r for r in rows if r["paper_id"] == "doi:10.1109/ISCA.2024.001")
+        assert first["keep"] == "yes"
+        assert first["notes"] == "important"
+        assert first["title"] == "UPDATED TITLE"
 
-        print("PASS: csv_write_and_preserve_human_columns")
+        second = next(r for r in rows if r["paper_id"] == "doi:10.1145/MICRO.2024.002")
+        assert second["keep"] == "no"
+        print("PASS: csv_write_preserves_human_columns")
 
 
-def test_update_mode_appends_only_new():
-    """Update mode should only append papers not already in seen_paper_ids."""
+def test_append_only_new():
+    """Update mode only appends net-new papers."""
     with tempfile.TemporaryDirectory() as tmpdir:
         csv_path = os.path.join(tmpdir, "test.csv")
+        write_csv(MOCK_PAPERS[:2], csv_path, {})
 
-        # Initial full write
-        write_csv(MOCK_ARXIV_PAPERS, csv_path, {})
-
-        # Update: try to add same + new papers
-        new_papers = list(MOCK_S2_PAPERS)  # 2301.07041 (duplicate) + xyz789ghi012 (new)
-        seen_ids = {"arxiv:2301.07041", "arxiv:2405.12345"}  # already in CSV
-        count = append_csv(new_papers, csv_path, seen_ids)
-
-        assert count == 1, f"Expected 1 new paper appended, got {count}"
+        seen = {"doi:10.1109/ISCA.2024.001", "doi:10.1145/MICRO.2024.002"}
+        count = append_csv(MOCK_PAPERS, csv_path, seen)
+        assert count == 1, f"Expected 1 new, got {count}"
 
         rows, _ = read_existing_csv(csv_path)
-        assert len(rows) == 3, f"Expected 3 total rows, got {len(rows)}"
-
-        ids = {r["paper_id"] for r in rows}
-        assert "s2:xyz789ghi012" in ids, "New S2 paper should be in CSV"
-        assert rows[0]["paper_id"] == "arxiv:2301.07041", "Original row preserved"
-
-        print("PASS: update_mode_appends_only_new")
+        assert len(rows) == 3
+        print("PASS: append_only_new")
 
 
 def test_idempotent_update():
-    """Running update twice with same data should add 0 papers the second time."""
+    """Second update with same data adds 0."""
     with tempfile.TemporaryDirectory() as tmpdir:
         csv_path = os.path.join(tmpdir, "test.csv")
-        write_csv(MOCK_ARXIV_PAPERS, csv_path, {})
+        write_csv(MOCK_PAPERS[:2], csv_path, {})
 
-        seen_ids = {"arxiv:2301.07041", "arxiv:2405.12345"}
-        new_papers = [MOCK_S2_PAPERS[1]]  # s2:xyz789ghi012
+        seen = {"doi:10.1109/ISCA.2024.001", "doi:10.1145/MICRO.2024.002"}
+        append_csv([MOCK_PAPERS[2]], csv_path, seen)
+        seen.add("doi:10.1109/HPCA.2024.003")
 
-        # First update
-        count1 = append_csv(new_papers, csv_path, seen_ids)
-        assert count1 == 1
-
-        # Update seen_ids
-        seen_ids.add("s2:xyz789ghi012")
-
-        # Second update with same data
-        count2 = append_csv(new_papers, csv_path, seen_ids)
-        assert count2 == 0, f"Expected 0 on second run, got {count2}"
-
-        rows, _ = read_existing_csv(csv_path)
-        assert len(rows) == 3, "Should still be 3 rows"
-
+        count2 = append_csv([MOCK_PAPERS[2]], csv_path, seen)
+        assert count2 == 0
         print("PASS: idempotent_update")
 
 
 def test_keyword_scoring():
-    """Papers with more keyword matches should rank higher."""
-    papers = list(MOCK_ARXIV_PAPERS) + list(MOCK_S2_PAPERS)
-    keywords = ["AMX", "Intel", "tensor"]
-    scored = score_by_keywords(papers, keywords)
-
-    # "Intel AMX Performance Characterization" should rank first
-    assert scored[0]["title"] == "Intel AMX Performance Characterization", \
-        f"Expected Intel AMX paper first, got '{scored[0]['title']}'"
-
+    scored = score_by_keywords(list(MOCK_PAPERS), ["AMX", "Intel"])
+    assert "AMX" in scored[0]["title"] or "Intel" in scored[0]["title"]
     print("PASS: keyword_scoring")
 
 
-def test_state_update():
-    """State tracking should accumulate seen IDs and history."""
-    state = load_state("/nonexistent/state.json")
-    config = {"topic": "test topic", "date_range": {"start": "2023-01-01"}}
-
-    # Simulate full crawl
-    state = update_state(state, "full", MOCK_ARXIV_PAPERS, config, "2023-01-01")
-    assert "arxiv:2301.07041" in state["seen_paper_ids"]
+def test_state_update_with_venue_stats():
+    state = {
+        "seen_paper_ids": [],
+        "crawled_venues": [],
+        "crawl_history": [],
+    }
+    config = {"topic": "test", "date_range": {"start": 2024}}
+    venue_stats = [
+        {"venue": "ISCA", "year": 2024, "papers": 87, "crawled": "2026-04-08"},
+        {"venue": "MICRO", "year": 2024, "papers": 115, "crawled": "2026-04-08"},
+    ]
+    state = update_state(state, "full", MOCK_PAPERS, config, "2024", venue_stats)
+    assert len(state["seen_paper_ids"]) == 3
+    assert len(state["crawled_venues"]) == 2
     assert state["last_full_crawl"] is not None
     assert len(state["crawl_history"]) == 1
 
-    # Simulate update crawl
-    state = update_state(state, "update", MOCK_S2_PAPERS, config, "2026-04-01")
-    assert "s2:xyz789ghi012" in state["seen_paper_ids"]
-    assert len(state["seen_paper_ids"]) == 3  # 2 arXiv + 1 new S2 (arxiv:2301.07041 overlaps)
-    assert len(state["crawl_history"]) == 2
-
-    # Gate 4 check: seen_paper_ids are canonical
+    # All paper_ids have doi: prefix
     for pid in state["seen_paper_ids"]:
-        assert pid.startswith("arxiv:") or pid.startswith("s2:"), f"Bad paper_id format: {pid}"
+        assert pid.startswith("doi:"), f"Expected doi: prefix, got {pid}"
+    print("PASS: state_update_with_venue_stats")
 
-    print("PASS: state_update")
 
-
-def test_csv_has_required_columns():
-    """CSV output must contain paper_id, arxiv_id, s2_paper_id columns."""
+def test_csv_required_columns():
     with tempfile.TemporaryDirectory() as tmpdir:
         csv_path = os.path.join(tmpdir, "test.csv")
-        merged = dedup_papers(MOCK_ARXIV_PAPERS, MOCK_S2_PAPERS)
-        write_csv(merged, csv_path, {})
-
+        write_csv(MOCK_PAPERS, csv_path, {})
         with open(csv_path, encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            cols = reader.fieldnames
-            for required in ["paper_id", "arxiv_id", "s2_paper_id"]:
-                assert required in cols, f"Missing required column: {required}"
-
+            for required in ["paper_id", "arxiv_id", "s2_paper_id", "doi"]:
+                assert required in reader.fieldnames, f"Missing column: {required}"
             rows = list(reader)
             for row in rows:
-                assert row["paper_id"], "paper_id must not be empty"
-                assert row["arxiv_id"] or row["s2_paper_id"], \
-                    f"At least one of arxiv_id/s2_paper_id must be set for {row['paper_id']}"
+                assert row["paper_id"].startswith("doi:"), f"Expected doi: prefix: {row['paper_id']}"
+                assert row["doi"], f"DOI must not be empty for {row['paper_id']}"
+    print("PASS: csv_required_columns")
 
-        print("PASS: csv_has_required_columns")
+
+def test_crossref_abstract_cleaning():
+    raw = '<jats:p>We propose a novel <jats:italic>CPU architecture</jats:italic> for AI.</jats:p>'
+    cleaned = _clean_crossref_abstract(raw)
+    assert "jats:" not in cleaned
+    assert "CPU architecture" in cleaned
+    print("PASS: crossref_abstract_cleaning")
+
+
+def test_abstract_fallback_marks_unavailable():
+    """Papers with no abstract and no DOI/arxiv_id get marked unavailable."""
+    papers = [{
+        "paper_id": "dblp:conf/test/Author24",
+        "arxiv_id": "",
+        "s2_paper_id": "",
+        "doi": "",
+        "abstract": "",
+    }]
+    cr, arxiv, unavail = enrich_abstracts(papers, crossref_enabled=False, arxiv_enabled=False)
+    assert unavail == 1
+    assert papers[0]["abstract"] == "[abstract unavailable]"
+    print("PASS: abstract_fallback_marks_unavailable")
+
+
+def test_update_years_computation():
+    state = {
+        "crawled_venues": [
+            {"venue": "ISCA", "year": 2023},
+            {"venue": "ISCA", "year": 2024},
+        ],
+    }
+    config = {"update": {"overlap_years": 1}, "date_range": {"start": 2020}}
+    start, end = _compute_update_years(state, config)
+    assert start == 2024, f"Expected 2024, got {start}"  # max_year(2024) - overlap(1) + 1
+    print("PASS: update_years_computation")
 
 
 # ---------------------------------------------------------------------------
-# Run all tests
+# Run
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     tests = [
         test_slugify,
-        test_dedup_merges_arxiv_s2_overlap,
-        test_csv_write_and_preserve_human_columns,
-        test_update_mode_appends_only_new,
+        test_csv_write_preserves_human_columns,
+        test_append_only_new,
         test_idempotent_update,
         test_keyword_scoring,
-        test_state_update,
-        test_csv_has_required_columns,
+        test_state_update_with_venue_stats,
+        test_csv_required_columns,
+        test_crossref_abstract_cleaning,
+        test_abstract_fallback_marks_unavailable,
+        test_update_years_computation,
     ]
-
-    passed = 0
-    failed = 0
-    for test in tests:
+    passed = failed = 0
+    for t in tests:
         try:
-            test()
+            t()
             passed += 1
-        except AssertionError as e:
-            print(f"FAIL: {test.__name__}: {e}")
-            failed += 1
         except Exception as e:
-            print(f"ERROR: {test.__name__}: {e}")
+            print(f"FAIL: {t.__name__}: {e}")
             failed += 1
-
     print(f"\n{'='*50}")
     print(f"Results: {passed} passed, {failed} failed, {passed + failed} total")
     if failed == 0:

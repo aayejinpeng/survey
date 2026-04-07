@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Survey Crawler: fetch papers from arXiv + Semantic Scholar, output CSV.
+"""Survey Crawler v2: DBLP venue-based discovery + S2/Crossref/arXiv enrichment.
 
-Reuses arxiv_fetch.py and semantic_scholar_fetch.py as imported modules.
+Pipeline: DBLP proceedings → S2 enrichment (DOI) → Crossref/arXiv abstract fallback → CSV
 
 Usage
 -----
@@ -22,6 +22,9 @@ import os
 import re
 import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -66,6 +69,11 @@ CSV_COLUMNS = [
 
 HUMAN_COLUMNS = {"keep", "notes"}
 
+_S2_ENRICH_FIELDS = (
+    "paperId,citationCount,abstract,venue,publicationVenue,externalIds,"
+    "publicationDate,fieldsOfStudy,openAccessPdf"
+)
+
 # ---------------------------------------------------------------------------
 # Config / State helpers
 # ---------------------------------------------------------------------------
@@ -76,29 +84,11 @@ def _slugify(topic: str) -> str:
 
 
 def load_config(path: str) -> dict[str, Any]:
-    """Load config.yaml.  Falls back to a minimal YAML parser (no PyYAML dep)."""
     if not os.path.isfile(path):
         raise FileNotFoundError(f"Config not found: {path}")
-
+    import yaml  # type: ignore[import-untyped]
     with open(path, encoding="utf-8") as f:
-        text = f.read()
-
-    # Minimal YAML subset parser — handles the config format we defined.
-    # If PyYAML is available, prefer it.
-    try:
-        import yaml  # type: ignore[import-untyped]
-
-        return yaml.safe_load(text) or {}
-    except ImportError:
-        return _parse_simple_yaml(text)
-
-
-def _parse_simple_yaml(text: str) -> dict[str, Any]:
-    """Very small YAML parser for our config format only."""
-    # Not general-purpose; handles our flat + one-level-nested structure.
-    import yaml  # will fail if not installed; we require it
-
-    return yaml.safe_load(text)
+        return yaml.safe_load(f) or {}
 
 
 def load_state(path: str) -> dict[str, Any]:
@@ -108,6 +98,7 @@ def load_state(path: str) -> dict[str, Any]:
             "last_full_crawl": None,
             "last_incremental_crawl": None,
             "seen_paper_ids": [],
+            "crawled_venues": [],
             "crawl_history": [],
         }
     with open(path, encoding="utf-8") as f:
@@ -121,265 +112,279 @@ def save_state(path: str, state: dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Step 1.2: arXiv crawling
+# Phase A: DBLP Proceedings Fetch (HTML)
 # ---------------------------------------------------------------------------
 
 
-def crawl_arxiv(config: dict[str, Any]) -> list[dict[str, Any]]:
-    """Search arXiv and return normalised paper dicts."""
-    arxiv_cfg = config.get("arxiv", {})
-    queries = arxiv_cfg.get("queries", [])
-    categories = arxiv_cfg.get("categories", [])
-    max_per_query = arxiv_cfg.get("max_per_query", 50)
+def _fetch_html(url: str) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": "survey-crawler/0.1"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return resp.read().decode("utf-8")
 
-    results: list[dict[str, Any]] = []
+
+def fetch_venue_papers(venue_id: str, dblp_key: str, year: int) -> list[dict[str, Any]]:
+    """Fetch all research papers from a DBLP proceedings page."""
+    abbr = dblp_key.split("/")[-1]
+    url = f"https://dblp.org/db/{dblp_key}/{abbr}{year}"
+    print(f"  Fetching {url} ...", end=" ")
+
+    try:
+        html = _fetch_html(url)
+    except Exception as exc:
+        print(f"FAILED: {exc}")
+        return []
+
+    # Find entry boundaries
+    entry_starts = [
+        (m.start(), m.group(1))
+        for m in re.finditer(
+            r'<li\s[^>]*class="entry inproceedings"[^>]*id="([^"]+)"', html
+        )
+    ]
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    papers: list[dict[str, Any]] = []
+    seen_dois: set[str] = set()
+
+    for i, (pos, dblp_id) in enumerate(entry_starts):
+        end = entry_starts[i + 1][0] if i + 1 < len(entry_starts) else len(html)
+        block = html[pos:end]
+
+        # DOI from nav links
+        doi_m = re.findall(r'href="https://doi\.org/([^"]+)"', block)
+        doi = doi_m[0] if doi_m else ""
+
+        # COinS: title + authors (appears after the </li>, within the block)
+        coins = re.findall(r'title="(ctx_ver[^"]*rft\.atitle[^"]*)"', block)
+        if not coins:
+            continue
+
+        raw = coins[0]
+        atitle_m = re.findall(r"rft\.atitle=(.+?)(?:&rft\.)", raw)
+        au_m = re.findall(r"rft\.au=(.+?)(?:&rft\.|$)", raw)
+        if not atitle_m:
+            continue
+
+        title = urllib.parse.unquote_plus(atitle_m[0]).rstrip(".")
+        authors = [urllib.parse.unquote_plus(a) for a in au_m]
+
+        # Dedup by DOI
+        if doi and doi in seen_dois:
+            continue
+        if doi:
+            seen_dois.add(doi)
+
+        paper_id = f"doi:{doi}" if doi else f"dblp:{dblp_id}"
+
+        papers.append({
+            "paper_id": paper_id,
+            "arxiv_id": "",
+            "s2_paper_id": "",
+            "title": title,
+            "authors": "; ".join(authors),
+            "year": str(year),
+            "venue": venue_id,
+            "abstract": "",
+            "source": "dblp",
+            "categories": "",
+            "citation_count": 0,
+            "url": f"https://doi.org/{doi}" if doi else f"https://dblp.org/rec/{dblp_id}",
+            "doi": doi,
+            "published_date": f"{year}-01-01",
+            "crawled_date": today,
+            "keep": "",
+            "notes": "",
+        })
+
+    print(f"{len(papers)} papers")
+    return papers
+
+
+def fetch_all_venues(config: dict[str, Any]) -> list[dict[str, Any]]:
+    """Fetch papers from all configured venues × years."""
+    venues = config.get("venues", [])
+    date_range = config.get("date_range", {})
+    start_year = int(date_range.get("start", 2020))
+    end_year = int(date_range.get("end", datetime.now().year))
+
+    all_papers: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
 
-    for query in queries:
-        # Build query with category prefix if specified
-        full_query = query
-        if categories:
-            cat_prefix = " OR ".join(f"cat:{cat}" for cat in categories)
-            full_query = f"({cat_prefix}) AND ({query})"
+    for venue in venues:
+        vid = venue["id"]
+        dblp_key = venue["dblp_key"]
+        for year in range(start_year, end_year + 1):
+            papers = fetch_venue_papers(vid, dblp_key, year)
+            for p in papers:
+                if p["paper_id"] not in seen_ids:
+                    seen_ids.add(p["paper_id"])
+                    all_papers.append(p)
 
+    return all_papers
+
+
+# ---------------------------------------------------------------------------
+# Phase B: S2 Enrichment (via DOI)
+# ---------------------------------------------------------------------------
+
+
+def enrich_from_s2(
+    papers: list[dict[str, Any]],
+    delay: float = 1.1,
+    enabled: bool = True,
+) -> tuple[int, int]:
+    """Enrich papers via S2 DOI lookup. Returns (enriched_count, abstract_filled)."""
+    if not enabled:
+        return 0, 0
+
+    enriched = 0
+    abstracts = 0
+    skipped = 0
+    failed = 0
+
+    eligible = [p for p in papers if p.get("doi")]
+    total = len(eligible)
+
+    for i, paper in enumerate(eligible):
+        doi = paper["doi"]
+        progress = f"    [{i+1}/{total}]"
         try:
-            entries = arxiv_fetch.search(full_query, max_results=max_per_query)
-        except Exception as exc:
-            print(f"  [arxiv] query '{query}' failed: {exc}", file=sys.stderr)
-            continue
-
-        for entry in entries:
-            aid = entry["id"]
-            if aid in seen_ids:
-                continue
-            seen_ids.add(aid)
-
-            results.append({
-                "paper_id": f"arxiv:{aid}",
-                "arxiv_id": aid,
-                "s2_paper_id": "",
-                "title": entry["title"],
-                "authors": "; ".join(entry.get("authors", [])),
-                "year": entry.get("published", "")[:4],
-                "venue": "arXiv",
-                "abstract": entry.get("abstract", ""),
-                "source": "arxiv",
-                "categories": "; ".join(entry.get("categories", [])),
-                "citation_count": 0,
-                "url": entry.get("abs_url", f"https://arxiv.org/abs/{aid}"),
-                "doi": "",
-                "published_date": entry.get("published", "")[:10],
-                "crawled_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                "keep": "",
-                "notes": "",
-            })
-
-    return results
-
-
-# ---------------------------------------------------------------------------
-# Step 1.3: Semantic Scholar crawling
-# ---------------------------------------------------------------------------
-
-
-def crawl_s2(config: dict[str, Any]) -> list[dict[str, Any]]:
-    """Search Semantic Scholar and return normalised paper dicts."""
-    s2_cfg = config.get("semantic_scholar", {})
-    queries = s2_cfg.get("queries", [])
-    max_per_query = s2_cfg.get("max_per_query", 50)
-    fields_of_study = s2_cfg.get("fields_of_study")
-    pub_types = s2_cfg.get("publication_types")
-    min_citations = s2_cfg.get("min_citations")
-    date_range = config.get("date_range", {})
-    year_str: str | None = None
-    if date_range.get("start") or date_range.get("end"):
-        s = date_range.get("start", "") or ""
-        e = date_range.get("end", "") or ""
-        year_str = f"{s[:4]}-{e[:4]}" if e else f"{s[:4]}-"
-
-    results: list[dict[str, Any]] = []
-    seen_s2: set[str] = set()
-
-    for query in queries:
-        try:
-            resp = s2_fetch.search(
-                query=query,
-                max_results=max_per_query,
-                fields_of_study=fields_of_study,
-                publication_types=pub_types,
-                min_citation_count=min_citations,
-                year=year_str,
-            )
-            papers = resp.get("data", [])
-        except Exception as exc:
-            print(f"  [s2] query '{query}' failed: {exc}", file=sys.stderr)
-            continue
-
-        for p in papers:
-            pid = p.get("paperId", "")
-            if not pid or pid in seen_s2:
-                continue
-            seen_s2.add(pid)
-
-            ext = p.get("externalIds") or {}
-            arxiv_id = ext.get("ArXiv", "")
-            doi = ext.get("DOI", "")
-
-            paper_id = f"arxiv:{arxiv_id}" if arxiv_id else f"s2:{pid}"
-
-            authors_list = p.get("authors") or []
-            authors_str = "; ".join(a.get("name", "") for a in authors_list if a.get("name"))
-
-            results.append({
-                "paper_id": paper_id,
-                "arxiv_id": arxiv_id,
-                "s2_paper_id": pid,
-                "title": p.get("title", ""),
-                "authors": authors_str,
-                "year": str(p.get("year", "")) if p.get("year") else "",
-                "venue": p.get("venue", ""),
-                "abstract": p.get("abstract", ""),
-                "source": "semantic_scholar",
-                "categories": "; ".join(p.get("fieldsOfStudy") or []),
-                "citation_count": p.get("citationCount", 0) or 0,
-                "url": p.get("url", ""),
-                "doi": doi,
-                "published_date": (p.get("publicationDate") or "")[:10],
-                "crawled_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                "keep": "",
-                "notes": "",
-            })
-
-    return results
-
-
-# ---------------------------------------------------------------------------
-# Step 1.4: S2 enrichment for arXiv papers
-# ---------------------------------------------------------------------------
-
-
-def enrich_from_s2(papers: list[dict[str, Any]], delay: float = 1.1) -> None:
-    """For arXiv-only papers, look up S2 to fill citation_count, venue, doi, s2_paper_id."""
-    for paper in papers:
-        if paper["source"] != "arxiv" or paper["arxiv_id"] == "":
-            continue
-        try:
-            s2_data = s2_fetch.get_paper(
-                f"ARXIV:{paper['arxiv_id']}",
-                fields="paperId,citationCount,venue,publicationVenue,externalIds,publicationDate,doi",
-            )
+            s2_data = s2_fetch.get_paper(f"DOI:{doi}", fields=_S2_ENRICH_FIELDS)
             paper["citation_count"] = s2_data.get("citationCount", 0) or 0
             paper["s2_paper_id"] = s2_data.get("paperId", "")
-            if s2_data.get("venue") and not paper["venue"].startswith("arXiv"):
-                paper["venue"] = s2_data["venue"]
+
+            if s2_data.get("abstract") and not paper.get("abstract"):
+                paper["abstract"] = s2_data["abstract"]
+                abstracts += 1
+
             ext = s2_data.get("externalIds") or {}
-            if ext.get("DOI") and not paper["doi"]:
-                paper["doi"] = ext["DOI"]
-            if s2_data.get("publicationDate") and not paper["published_date"]:
+            if ext.get("ArXiv"):
+                paper["arxiv_id"] = ext["ArXiv"]
+            if s2_data.get("publicationDate") and paper["published_date"] == f"{paper['year']}-01-01":
                 paper["published_date"] = s2_data["publicationDate"][:10]
+            fos = s2_data.get("fieldsOfStudy") or []
+            if fos and not paper["categories"]:
+                paper["categories"] = "; ".join(fos)
+
+            enriched += 1
+            # Print progress every 10 papers or on first/last
+            if i == 0 or (i + 1) % 10 == 0 or i == total - 1:
+                print(f"{progress} S2 OK  (enriched: {enriched}, abstracts: {abstracts}, failed: {failed})")
         except Exception as exc:
-            print(f"  [s2-enrich] {paper['arxiv_id']}: {exc}", file=sys.stderr)
+            failed += 1
+            print(f"{progress} S2 FAIL {doi}: {exc}", file=sys.stderr)
         time.sleep(delay)
 
-
-# ---------------------------------------------------------------------------
-# Step 1.5: Deduplication + merge
-# ---------------------------------------------------------------------------
-
-
-def _normalise_doi(doi: str) -> str:
-    return doi.strip().lower().rstrip("/")
-
-
-def dedup_papers(
-    arxiv_results: list[dict[str, Any]],
-    s2_results: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Merge arXiv and S2 results, deduplicating by arxiv_id > doi > s2_paper_id."""
-    by_arxiv: dict[str, dict[str, Any]] = {}
-    by_doi: dict[str, dict[str, Any]] = {}
-    by_s2: dict[str, dict[str, Any]] = {}
-
-    def _index(paper: dict[str, Any]) -> None:
-        aid = paper.get("arxiv_id", "")
-        if aid:
-            by_arxiv.setdefault(aid, paper)
-        doi = paper.get("doi", "")
-        if doi:
-            ndoi = _normalise_doi(doi)
-            by_doi.setdefault(ndoi, paper)
-        sid = paper.get("s2_paper_id", "")
-        if sid:
-            by_s2.setdefault(sid, paper)
-
-    # Index arXiv results first (lower priority for merge)
-    for p in arxiv_results:
-        _index(p)
-
-    # S2 results merge into existing or create new
-    for p in s2_results:
-        aid = p.get("arxiv_id", "")
-        doi = p.get("doi", "")
-        sid = p.get("s2_paper_id", "")
-
-        # Find existing match
-        existing: dict[str, Any] | None = None
-        if aid and aid in by_arxiv:
-            existing = by_arxiv[aid]
-        elif doi and _normalise_doi(doi) in by_doi:
-            existing = by_doi[_normalise_doi(doi)]
-        elif sid and sid in by_s2:
-            existing = by_s2[sid]
-
-        if existing:
-            # Merge: prefer non-empty values, prefer S2 metadata
-            _merge_into(existing, p)
-        else:
-            _index(p)
-
-    # Collect unique papers (dedup by paper_id)
-    seen: set[str] = set()
-    merged: list[dict[str, Any]] = []
-    for paper in list(by_arxiv.values()) + list(by_s2.values()):
-        pid = paper["paper_id"]
-        if pid not in seen:
-            seen.add(pid)
-            merged.append(paper)
-
-    return merged
-
-
-def _merge_into(target: dict[str, Any], source: dict[str, Any]) -> None:
-    """Merge source into target. Prefer non-empty, prefer source's values."""
-    machine_cols = [c for c in CSV_COLUMNS if c not in HUMAN_COLUMNS]
-    for col in machine_cols:
-        src_val = source.get(col, "")
-        tgt_val = target.get(col, "")
-        # Prefer source if it has a non-empty value and target is empty
-        if src_val and not tgt_val:
-            target[col] = src_val
-        # For citation_count and s2_paper_id, prefer S2 (source)
-        if col in ("citation_count", "s2_paper_id", "doi") and src_val:
-            target[col] = src_val
-    # Fix paper_id: prefer arxiv: prefix if arxiv_id exists
-    if target.get("arxiv_id"):
-        target["paper_id"] = f"arxiv:{target['arxiv_id']}"
-    elif target.get("s2_paper_id"):
-        target["paper_id"] = f"s2:{target['s2_paper_id']}"
+    return enriched, abstracts
 
 
 # ---------------------------------------------------------------------------
-# Step 1.6: Keyword scoring
+# Phase C: Abstract Fallback Chain
+# ---------------------------------------------------------------------------
+
+
+def _request_json(url: str, timeout: int = 15) -> dict[str, Any]:
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "survey-crawler/0.1 (mailto:research@example.com)",
+        "Accept": "application/json",
+    })
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if exc.code in (429, 500, 502, 503) and attempt == 0:
+                time.sleep(2)
+                continue
+            raise
+    return {}
+
+
+def _clean_crossref_abstract(raw: str) -> str:
+    """Clean Crossref abstract: strip all <jats:...> tags."""
+    text = re.sub(r"</?jats:[^>]*>", "", raw)
+    return text.strip()
+
+
+def _fill_from_crossref(paper: dict[str, Any]) -> bool:
+    """Try to fill abstract from Crossref API via DOI."""
+    doi = paper.get("doi", "")
+    if not doi:
+        return False
+    try:
+        url = f"https://api.crossref.org/works/{urllib.parse.quote(doi, safe='')}"
+        data = _request_json(url)
+        msg = data.get("message", {})
+        abstract = msg.get("abstract", "")
+        if abstract:
+            paper["abstract"] = _clean_crossref_abstract(abstract)
+            return True
+    except Exception as exc:
+        print(f"    [crossref] {doi}: {exc}", file=sys.stderr)
+    return False
+
+
+def _fill_from_arxiv(paper: dict[str, Any]) -> bool:
+    """Try to fill abstract from arXiv API via arxiv_id."""
+    aid = paper.get("arxiv_id", "")
+    if not aid:
+        return False
+    try:
+        entries = arxiv_fetch.search(f"id:{aid}", max_results=1)
+        if entries and entries[0].get("abstract"):
+            paper["abstract"] = entries[0]["abstract"]
+            return True
+    except Exception as exc:
+        print(f"    [arxiv] {aid}: {exc}", file=sys.stderr)
+    return False
+
+
+def enrich_abstracts(
+    papers: list[dict[str, Any]],
+    crossref_enabled: bool = True,
+    arxiv_enabled: bool = True,
+) -> tuple[int, int, int]:
+    """Fill missing abstracts via fallback chain. Returns (crossref, arxiv, unavailable)."""
+    cr_count = 0
+    arxiv_count = 0
+    unavailable = 0
+
+    missing = [p for p in papers if not p.get("abstract")]
+    total_missing = len(missing)
+
+    for i, paper in enumerate(missing):
+        progress = f"    [{i+1}/{total_missing}]"
+        title_short = paper.get("title", "")[:50]
+
+        if crossref_enabled and _fill_from_crossref(paper):
+            cr_count += 1
+            if (i + 1) % 10 == 0 or i == total_missing - 1:
+                print(f"{progress} Crossref OK  (cr: {cr_count}, arxiv: {arxiv_count}, unavail: {unavailable})")
+            continue
+
+        if arxiv_enabled and _fill_from_arxiv(paper):
+            arxiv_count += 1
+            time.sleep(1.0)  # arXiv rate limit
+            if (i + 1) % 10 == 0 or i == total_missing - 1:
+                print(f"{progress} arXiv OK  (cr: {cr_count}, arxiv: {arxiv_count}, unavail: {unavailable})")
+            continue
+
+        paper["abstract"] = "[abstract unavailable]"
+        unavailable += 1
+
+    return cr_count, arxiv_count, unavailable
+
+
+# ---------------------------------------------------------------------------
+# Keyword scoring
 # ---------------------------------------------------------------------------
 
 
 def score_by_keywords(
     papers: list[dict[str, Any]], keywords: list[str]
 ) -> list[dict[str, Any]]:
-    """Sort papers by simple keyword match score (descending)."""
     if not keywords:
         return papers
-
     kw_lower = [k.lower() for k in keywords]
 
     def _score(paper: dict[str, Any]) -> int:
@@ -391,21 +396,15 @@ def score_by_keywords(
 
 
 # ---------------------------------------------------------------------------
-# Step 1.7: CSV read/write (merge-safe)
+# CSV read/write (merge-safe)
 # ---------------------------------------------------------------------------
 
 
 def read_existing_csv(path: str) -> tuple[list[dict[str, str]], dict[str, dict[str, str]]]:
-    """Read existing CSV and return (rows, human_columns_by_paper_id).
-
-    human_columns_by_paper_id maps paper_id -> {"keep": ..., "notes": ...}
-    """
     if not os.path.isfile(path):
         return [], {}
-
     rows: list[dict[str, str]] = []
     human: dict[str, dict[str, str]] = {}
-
     with open(path, encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -416,7 +415,6 @@ def read_existing_csv(path: str) -> tuple[list[dict[str, str]], dict[str, dict[s
                     "keep": row.get("keep", ""),
                     "notes": row.get("notes", ""),
                 }
-
     return rows, human
 
 
@@ -425,28 +423,21 @@ def write_csv(
     path: str,
     existing_human: dict[str, dict[str, str]],
 ) -> int:
-    """Write CSV with merge-safe human columns.  Returns number of papers written."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=CSV_COLUMNS, quoting=csv.QUOTE_ALL)
     writer.writeheader()
-
     for paper in papers:
         row = {col: str(paper.get(col, "")) for col in CSV_COLUMNS}
-        # Preserve human columns from existing CSV
         pid = row["paper_id"]
         if pid in existing_human:
             row["keep"] = existing_human[pid].get("keep", "")
             row["notes"] = existing_human[pid].get("notes", "")
         writer.writerow(row)
-
-    # Atomic write: write to temp then rename
     tmp_path = path + ".tmp"
     with open(tmp_path, "w", encoding="utf-8", newline="") as f:
         f.write(buf.getvalue())
     os.replace(tmp_path, path)
-
     return len(papers)
 
 
@@ -455,27 +446,21 @@ def append_csv(
     path: str,
     seen_paper_ids: set[str],
 ) -> int:
-    """Append net-new papers to existing CSV.  Returns count of appended rows."""
     if not new_papers:
         return 0
-
-    # Filter to net-new only
     net_new = [p for p in new_papers if p["paper_id"] not in seen_paper_ids]
     if not net_new:
         return 0
-
-    # Append to existing file
     with open(path, "a", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS, quoting=csv.QUOTE_ALL)
         for paper in net_new:
             row = {col: str(paper.get(col, "")) for col in CSV_COLUMNS}
             writer.writerow(row)
-
     return len(net_new)
 
 
 # ---------------------------------------------------------------------------
-# Step 1.8: State update
+# State update
 # ---------------------------------------------------------------------------
 
 
@@ -485,9 +470,9 @@ def update_state(
     new_papers: list[dict[str, Any]],
     config: dict[str, Any],
     effective_start: str,
+    venue_stats: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z"
-
     new_ids = [p["paper_id"] for p in new_papers]
     seen = set(state.get("seen_paper_ids", []))
     seen.update(new_ids)
@@ -498,6 +483,9 @@ def update_state(
     else:
         state["last_incremental_crawl"] = now
 
+    if venue_stats:
+        state["crawled_venues"] = venue_stats
+
     state["crawl_history"].append({
         "date": now[:10],
         "mode": mode,
@@ -506,7 +494,6 @@ def update_state(
         "new_papers": len(new_papers),
         "total_unique": len(seen),
     })
-
     return state
 
 
@@ -515,20 +502,20 @@ def update_state(
 # ---------------------------------------------------------------------------
 
 
-def _compute_effective_start(state: dict[str, Any], config: dict[str, Any]) -> str:
-    """Compute the effective start date for incremental update with overlap."""
-    overlap_days = config.get("update", {}).get("overlap_days", 7)
-    last = state.get("last_incremental_crawl") or state.get("last_full_crawl")
-    if not last:
-        # No previous crawl — fall back to config date_range.start
-        return config.get("date_range", {}).get("start", "2020-01-01")
+def _compute_update_years(state: dict[str, Any], config: dict[str, Any]) -> tuple[int, int]:
+    """Compute year range for incremental update with overlap."""
+    overlap = config.get("update", {}).get("overlap_years", 1)
+    end_year = datetime.now().year
 
-    # Parse the ISO timestamp
-    last_date = last[:10]  # "YYYY-MM-DD"
-    from datetime import timedelta
-    dt = datetime.strptime(last_date, "%Y-%m-%d")
-    effective = dt - timedelta(days=overlap_days)
-    return effective.strftime("%Y-%m-%d")
+    # Find latest crawled year
+    crawled = state.get("crawled_venues", [])
+    if crawled:
+        max_year = max(v.get("year", 0) for v in crawled)
+        start_year = max_year - overlap + 1
+    else:
+        start_year = int(config.get("date_range", {}).get("start", 2020))
+
+    return start_year, end_year
 
 
 # ---------------------------------------------------------------------------
@@ -538,7 +525,7 @@ def _compute_effective_start(state: dict[str, Any], config: dict[str, Any]) -> s
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Survey Crawler: fetch papers from arXiv + Semantic Scholar.",
+        description="Survey Crawler v2: DBLP venue-based discovery + enrichment.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -547,17 +534,17 @@ def _build_parser() -> argparse.ArgumentParser:
     crawl_parser.add_argument("--output", required=True, help="Output CSV path")
     crawl_parser.add_argument("--state", required=True, help="State JSON path")
     crawl_parser.add_argument(
-        "--mode",
-        choices=["full", "update"],
-        default="full",
+        "--mode", choices=["full", "update"], default="full",
         help="Crawl mode (default: full)",
     )
     crawl_parser.add_argument(
-        "--no-enrich",
-        action="store_true",
-        help="Skip S2 enrichment step (faster but less metadata)",
+        "--no-enrich", action="store_true",
+        help="Skip all enrichment (S2 + Crossref + arXiv)",
     )
-
+    crawl_parser.add_argument(
+        "--no-s2", action="store_true",
+        help="Skip S2 enrichment only",
+    )
     return parser
 
 
@@ -565,61 +552,127 @@ def crawl_main(args: argparse.Namespace) -> int:
     config = load_config(args.config)
     state = load_state(args.state)
 
-    effective_start = ""
+    # Header
+    mode_label = "UPDATE" if args.mode == "update" else "FULL"
+    print(f"\n{'='*60}")
+    print(f"  Survey Crawler — {mode_label} mode")
+    print(f"  Topic: {config.get('topic', 'unknown')}")
+    print(f"  Venues: {', '.join(v['id'] for v in config.get('venues', []))}")
+    print(f"  Years: {config.get('date_range', {}).get('start', '?')}–{config.get('date_range', {}).get('end', '?')}")
+    print(f"{'='*60}\n")
+
+    # Determine year range
     if args.mode == "update":
-        effective_start = _compute_effective_start(state, config)
-        print(f"Update mode: effective start = {effective_start}")
+        start_year, end_year = _compute_update_years(state, config)
+        print(f"  Update window: years {start_year}–{end_year}\n")
+        config["date_range"] = {"start": start_year, "end": end_year}
+        effective_start = str(start_year)
     else:
-        effective_start = config.get("date_range", {}).get("start", "")
+        effective_start = str(config.get("date_range", {}).get("start", ""))
 
-    # Step 1.2: arXiv
-    print("Crawling arXiv...")
-    arxiv_results = crawl_arxiv(config)
-    print(f"  arXiv: {len(arxiv_results)} papers")
+    # ── Phase A: DBLP ──
+    print("── Phase A: DBLP proceedings fetch ──")
+    papers = fetch_all_venues(config)
+    print(f"  Result: {len(papers)} papers from DBLP\n")
 
-    # Step 1.3: Semantic Scholar
-    print("Crawling Semantic Scholar...")
-    s2_results = crawl_s2(config)
-    print(f"  S2: {len(s2_results)} papers")
+    if not papers:
+        print("  No papers found. Check config venues and date_range.")
+        return 0
 
-    # Step 1.4: S2 enrichment for arXiv papers
-    if not args.no_enrich and arxiv_results:
-        print("Enriching arXiv papers with S2 metadata...")
-        enrich_from_s2(arxiv_results)
-        print("  Enrichment done")
+    # Build venue stats
+    venue_stats = []
+    for venue in config.get("venues", []):
+        for year in range(
+            int(config["date_range"]["start"]),
+            int(config["date_range"]["end"]) + 1,
+        ):
+            count = sum(
+                1 for p in papers
+                if p["venue"] == venue["id"] and p["year"] == str(year)
+            )
+            if count:
+                venue_stats.append({
+                    "venue": venue["id"],
+                    "year": year,
+                    "papers": count,
+                    "crawled": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                })
 
-    # Step 1.5: Dedup + merge
-    merged = dedup_papers(arxiv_results, s2_results)
-    print(f"After dedup: {len(merged)} unique papers")
+    # ── Phase B: S2 enrichment ──
+    enrich_cfg = config.get("enrichment", {})
+    s2_enabled = enrich_cfg.get("s2", {}).get("enabled", True) and not args.no_s2 and not args.no_enrich
 
-    # Step 1.6: Keyword scoring
+    print("── Phase B: S2 enrichment (via DOI) ──")
+    if s2_enabled:
+        eligible = sum(1 for p in papers if p.get("doi"))
+        print(f"  Papers with DOI: {eligible}/{len(papers)}")
+        enriched, s2_abstracts = enrich_from_s2(papers, enabled=True)
+        print(f"  Result: {enriched} enriched, {s2_abstracts} abstracts from S2")
+    else:
+        print("  SKIPPED (--no-s2 or --no-enrich)")
+    print()
+
+    # ── Phase C: Abstract fallback ──
+    cr_enabled = enrich_cfg.get("crossref", {}).get("enabled", True) and not args.no_enrich
+    arxiv_enabled = enrich_cfg.get("arxiv", {}).get("enabled", True) and not args.no_enrich
+    missing = sum(1 for p in papers if not p.get("abstract"))
+    have_abstract = len(papers) - missing
+
+    print("── Phase C: Abstract fallback ──")
+    print(f"  Abstracts status: {have_abstract} have, {missing} missing")
+    if missing > 0 and (cr_enabled or arxiv_enabled):
+        cr_count, arxiv_count, unavail = enrich_abstracts(
+            papers, crossref_enabled=cr_enabled, arxiv_enabled=arxiv_enabled,
+        )
+        print(f"  Result: Crossref={cr_count}, arXiv={arxiv_count}, unavailable={unavail}")
+    elif missing > 0:
+        print(f"  SKIPPED (enrichment disabled)")
+    else:
+        print(f"  All abstracts already filled, nothing to do")
+    print()
+
+    # ── Phase D: Score + write ──
+    print("── Phase D: Score + CSV write ──")
     keywords = config.get("keywords", [])
-    merged = score_by_keywords(merged, keywords)
+    papers = score_by_keywords(papers, keywords)
+    print(f"  Sorted by keywords: {', '.join(keywords[:5])}{'...' if len(keywords) > 5 else ''}")
 
     if args.mode == "full":
-        # Full mode: refresh machine columns, preserve human columns
         _, existing_human = read_existing_csv(args.output)
-        count = write_csv(merged, args.output, existing_human)
-        print(f"Written {count} papers to {args.output}")
+        preserved = sum(1 for pid in existing_human if any(p["paper_id"] == pid for p in papers))
+        count = write_csv(papers, args.output, existing_human)
+        print(f"  Written: {count} papers to {args.output}")
+        if preserved:
+            print(f"  Preserved: {preserved} existing keep/notes values")
     else:
-        # Update mode: append net-new only
         seen_ids = set(state.get("seen_paper_ids", []))
-        count = append_csv(merged, args.output, seen_ids)
-        print(f"Appended {count} new papers to {args.output}")
+        count = append_csv(papers, args.output, seen_ids)
+        print(f"  Appended: {count} new papers to {args.output}")
 
-    # Step 1.8: Update state
-    state = update_state(state, args.mode, merged, config, effective_start)
+    # State update
+    state = update_state(state, args.mode, papers, config, effective_start, venue_stats)
     if not state.get("topic_slug"):
         state["topic_slug"] = _slugify(config.get("topic", "unknown"))
     save_state(args.state, state)
-    print(f"State saved to {args.state}")
+
+    # ── Summary ──
+    final_have_abstract = sum(1 for p in papers if p.get("abstract") and p["abstract"] != "[abstract unavailable]")
+    final_unavail = sum(1 for p in papers if p.get("abstract") == "[abstract unavailable]")
+    print(f"\n{'='*60}")
+    print(f"  DONE — {len(papers)} papers total")
+    print(f"  Abstracts: {final_have_abstract} available, {final_unavail} unavailable")
+    print(f"  Output: {args.output}")
+    print(f"  State:  {args.state}")
+    if final_unavail > 0:
+        print(f"\n  Next step: Open CSV in spreadsheet, set keep=yes/no/maybe,")
+        print(f"  then run /survey-filter \"{config.get('topic', 'TOPIC')}\"")
+    print(f"{'='*60}\n")
 
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
-
     try:
         if args.command == "crawl":
             return crawl_main(args)

@@ -20,6 +20,6 @@ enrichment:
   arxiv:
     enabled: true
 
-keywords: ["CPU", "tensor", "matrix", "AI", "accelerator", "AMX", "SME", "RISC-V"]
+keywords: ["CPU", "tensor", "matrix", "AI", "accelerator", "AMX", "SME", "RISC-V" ,"risc","IME","VME","MMA","RVV","vector","matmul"]
 update:
   overlap_years: 1

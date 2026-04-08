@@ -260,6 +260,45 @@ def fetch_all_venues(config: dict[str, Any]) -> tuple[list[dict[str, Any]], list
 # ---------------------------------------------------------------------------
 
 
+_MAX_429_WAIT = 30  # seconds — give up if we'd need to wait longer
+
+
+def _call_with_429_retry(
+    fn,
+    *args,
+    max_retries: int = 3,
+    base_wait: float = 2.0,
+    label: str = "",
+) -> tuple[Any | None, str | None]:
+    """Call fn with exponential backoff on 429 errors.
+
+    Returns (result, error_tag).
+    - result: fn's return value on success, None on failure
+    - error_tag: None on success, or a human-readable error string for the abstract column
+    """
+    for attempt in range(max_retries):
+        try:
+            result = fn(*args)
+            return result, None
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429:
+                wait = base_wait * (2 ** attempt)  # 2, 4, 8, ...
+                if wait > _MAX_429_WAIT:
+                    tag = f"[error: 429 rate-limited after {attempt+1} retries, please fetch manually]"
+                    print(f"      [{label}] 429 gave up after {attempt+1} retries (would wait {wait:.0f}s)", file=sys.stderr)
+                    return None, tag
+                print(f"      [{label}] 429, retry {attempt+1}/{max_retries} in {wait:.0f}s...", file=sys.stderr)
+                time.sleep(wait)
+                continue
+            tag = f"[error: HTTP {exc.code}, please fetch manually]"
+            return None, tag
+        except Exception as exc:
+            tag = f"[error: {exc}, please fetch manually]"
+            return None, tag
+    tag = f"[error: 429 rate-limited after {max_retries} retries, please fetch manually]"
+    return None, tag
+
+
 def enrich_from_s2(
     papers: list[dict[str, Any]],
     delay: float = 1.1,
@@ -271,7 +310,6 @@ def enrich_from_s2(
 
     enriched = 0
     abstracts = 0
-    skipped = 0
     failed = 0
 
     eligible = [p for p in papers if p.get("doi")]
@@ -280,14 +318,33 @@ def enrich_from_s2(
     for i, paper in enumerate(eligible):
         doi = paper["doi"]
         progress = f"    [{i+1}/{total}]"
-        try:
-            s2_data = s2_fetch.get_paper(f"DOI:{doi}", fields=_S2_ENRICH_FIELDS)
+        label = f"S2 {doi}"
+
+        result, err = _call_with_429_retry(
+            lambda d=doi: s2_fetch.get_paper(f"DOI:{d}", fields=_S2_ENRICH_FIELDS),
+            max_retries=3,
+            base_wait=2.0,
+            label=label,
+        )
+
+        if err:
+            failed += 1
+            # Write error into abstract column if current value is a placeholder
+            ab = paper.get("abstract", "")
+            if not ab or ab in ("[abstract unavailable]",) or ab.startswith("[error:"):
+                paper["abstract"] = err
+            print(f"{progress} S2 FAIL: {err}")
+        elif result:
+            s2_data = result
             paper["citation_count"] = s2_data.get("citationCount", 0) or 0
             paper["s2_paper_id"] = s2_data.get("paperId", "")
 
-            if s2_data.get("abstract") and not paper.get("abstract"):
-                paper["abstract"] = s2_data["abstract"]
-                abstracts += 1
+            # Write S2 abstract if current value is empty or a placeholder
+            if s2_data.get("abstract"):
+                ab = paper.get("abstract", "")
+                if not ab or ab == "[abstract unavailable]" or ab.startswith("[error:"):
+                    paper["abstract"] = s2_data["abstract"]
+                    abstracts += 1
 
             ext = s2_data.get("externalIds") or {}
             if ext.get("ArXiv"):
@@ -299,12 +356,9 @@ def enrich_from_s2(
                 paper["categories"] = "; ".join(fos)
 
             enriched += 1
-            # Print progress every 10 papers or on first/last
             if i == 0 or (i + 1) % 10 == 0 or i == total - 1:
                 print(f"{progress} S2 OK  (enriched: {enriched}, abstracts: {abstracts}, failed: {failed})")
-        except Exception as exc:
-            failed += 1
-            print(f"{progress} S2 FAIL {doi}: {exc}", file=sys.stderr)
+
         time.sleep(delay)
 
     return enriched, abstracts
@@ -320,55 +374,61 @@ def _request_json(url: str, timeout: int = 15) -> dict[str, Any]:
         "User-Agent": "survey-crawler/0.1 (mailto:research@example.com)",
         "Accept": "application/json",
     })
-    for attempt in range(2):
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            if exc.code in (429, 500, 502, 503) and attempt == 0:
-                time.sleep(2)
-                continue
-            raise
-    return {}
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 def _clean_crossref_abstract(raw: str) -> str:
     """Clean Crossref abstract: strip all <jats:...> tags."""
-    text = re.sub(r"</?jats:[^>]*>", "", raw)
+    text = re.sub(r"</?jats:[>]*>", "", raw)
     return text.strip()
 
 
-def _fill_from_crossref(paper: dict[str, Any]) -> bool:
-    """Try to fill abstract from Crossref API via DOI."""
+def _fill_from_crossref(paper: dict[str, Any]) -> tuple[bool, str | None]:
+    """Try to fill abstract from Crossref API via DOI.
+    Returns (success, error_tag).
+    """
     doi = paper.get("doi", "")
     if not doi:
-        return False
-    try:
-        url = f"https://api.crossref.org/works/{urllib.parse.quote(doi, safe='')}"
-        data = _request_json(url)
-        msg = data.get("message", {})
-        abstract = msg.get("abstract", "")
+        return False, None
+
+    url = f"https://api.crossref.org/works/{urllib.parse.quote(doi, safe='')}"
+    result, err = _call_with_429_retry(
+        lambda u=url: _request_json(u),
+        max_retries=3,
+        base_wait=2.0,
+        label=f"Crossref {doi}",
+    )
+    if err:
+        return False, err
+    if result:
+        abstract = result.get("message", {}).get("abstract", "")
         if abstract:
             paper["abstract"] = _clean_crossref_abstract(abstract)
-            return True
-    except Exception as exc:
-        print(f"    [crossref] {doi}: {exc}", file=sys.stderr)
-    return False
+            return True, None
+    return False, None
 
 
-def _fill_from_arxiv(paper: dict[str, Any]) -> bool:
-    """Try to fill abstract from arXiv API via arxiv_id."""
+def _fill_from_arxiv(paper: dict[str, Any]) -> tuple[bool, str | None]:
+    """Try to fill abstract from arXiv API via arxiv_id.
+    Returns (success, error_tag).
+    """
     aid = paper.get("arxiv_id", "")
     if not aid:
-        return False
-    try:
-        entries = arxiv_fetch.search(f"id:{aid}", max_results=1)
-        if entries and entries[0].get("abstract"):
-            paper["abstract"] = entries[0]["abstract"]
-            return True
-    except Exception as exc:
-        print(f"    [arxiv] {aid}: {exc}", file=sys.stderr)
-    return False
+        return False, None
+
+    result, err = _call_with_429_retry(
+        lambda a=aid: arxiv_fetch.search(f"id:{a}", max_results=1),
+        max_retries=3,
+        base_wait=2.0,
+        label=f"arXiv {aid}",
+    )
+    if err:
+        return False, err
+    if result and result[0].get("abstract"):
+        paper["abstract"] = result[0]["abstract"]
+        return True, None
+    return False, None
 
 
 def enrich_abstracts(
@@ -381,28 +441,43 @@ def enrich_abstracts(
     arxiv_count = 0
     unavailable = 0
 
-    missing = [p for p in papers if not p.get("abstract")]
+    missing = [p for p in papers if not p.get("abstract") or p.get("abstract") == "" or p.get("abstract") == "[abstract unavailable]" or p.get("abstract", "").startswith("[error:")]
     total_missing = len(missing)
 
     for i, paper in enumerate(missing):
         progress = f"    [{i+1}/{total_missing}]"
-        title_short = paper.get("title", "")[:50]
 
-        if crossref_enabled and _fill_from_crossref(paper):
-            cr_count += 1
-            if (i + 1) % 10 == 0 or i == total_missing - 1:
-                print(f"{progress} Crossref OK  (cr: {cr_count}, arxiv: {arxiv_count}, unavail: {unavailable})")
-            continue
+        # Layer 1: Crossref
+        if crossref_enabled:
+            ok, err = _fill_from_crossref(paper)
+            if ok:
+                cr_count += 1
+                if (i + 1) % 10 == 0 or i == total_missing - 1:
+                    print(f"{progress} Crossref OK  (cr: {cr_count}, arxiv: {arxiv_count}, unavail: {unavailable})")
+                continue
+            if err:
+                paper["abstract"] = err
+                unavailable += 1
+                continue
 
-        if arxiv_enabled and _fill_from_arxiv(paper):
-            arxiv_count += 1
-            time.sleep(1.0)  # arXiv rate limit
-            if (i + 1) % 10 == 0 or i == total_missing - 1:
-                print(f"{progress} arXiv OK  (cr: {cr_count}, arxiv: {arxiv_count}, unavail: {unavailable})")
-            continue
+        # Layer 2: arXiv
+        if arxiv_enabled:
+            ok, err = _fill_from_arxiv(paper)
+            if ok:
+                arxiv_count += 1
+                time.sleep(1.0)
+                if (i + 1) % 10 == 0 or i == total_missing - 1:
+                    print(f"{progress} arXiv OK  (cr: {cr_count}, arxiv: {arxiv_count}, unavail: {unavailable})")
+                continue
+            if err:
+                paper["abstract"] = err
+                unavailable += 1
+                continue
 
-        paper["abstract"] = "[abstract unavailable]"
-        unavailable += 1
+        # Layer 3: Mark unavailable (no source had it)
+        if not paper.get("abstract"):
+            paper["abstract"] = "[abstract unavailable]"
+            unavailable += 1
 
     return cr_count, arxiv_count, unavailable
 
@@ -587,8 +662,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Skip S2 enrichment only",
     )
     enrich_parser.add_argument(
-        "--only-missing", action="store_true",
-        help="Only enrich papers with empty abstract/citation_count",
+        "--force", action="store_true",
+        help="Re-enrich all papers (default: only enrich missing/error items)",
     )
 
     return parser
@@ -666,7 +741,12 @@ def crawl_main(args: argparse.Namespace) -> int:
     # ── Phase C: Abstract fallback ──
     cr_enabled = enrich_cfg.get("crossref", {}).get("enabled", True) and not args.no_enrich
     arxiv_enabled = enrich_cfg.get("arxiv", {}).get("enabled", True) and not args.no_enrich
-    missing = sum(1 for p in papers if not p.get("abstract"))
+
+    def _is_missing_abstract(p):
+        ab = p.get("abstract", "")
+        return not ab or ab == "[abstract unavailable]" or ab.startswith("[error:")
+
+    missing = sum(1 for p in papers if _is_missing_abstract(p))
     have_abstract = len(papers) - missing
 
     print("── Phase C: Abstract fallback ──")
@@ -723,93 +803,119 @@ def crawl_main(args: argparse.Namespace) -> int:
 
 
 def enrich_main(args: argparse.Namespace) -> int:
-    """Enrich existing CSV with S2 + Crossref + arXiv. No DBLP fetch."""
+    """Enrich existing CSV with S2 + Crossref + arXiv. No DBLP fetch.
+    By default, only processes papers with empty/error abstract or missing citation_count.
+    Use --force to re-enrich everything.
+    """
     rows, existing_human = read_existing_csv(args.input)
     if not rows:
         print(f"No papers found in {args.input}")
         return 1
 
+    all_papers: list[dict[str, Any]] = [dict(r) for r in rows]
+
+    # ── Classify papers ──
+    def _needs_enrichment(p: dict) -> bool:
+        """True if paper is missing abstract, has error abstract, or missing citation_count."""
+        ab = p.get("abstract", "")
+        if not ab or ab == "":
+            return True
+        if ab.startswith("[error:"):
+            return True
+        if ab == "[abstract unavailable]":
+            return True
+        cc = str(p.get("citation_count", ""))
+        if not cc or cc in ("0", ""):
+            return True
+        return False
+
+    if args.force:
+        to_enrich = all_papers
+        skipped = 0
+    else:
+        to_enrich = [p for p in all_papers if _needs_enrichment(p)]
+        skipped = len(all_papers) - len(to_enrich)
+
+    # ── Header ──
     print(f"\n{'='*60}")
     print(f"  Survey Crawler — ENRICH only")
     print(f"  Input:  {args.input}")
-    print(f"  Papers: {len(rows)}")
-    if args.only_missing:
-        print(f"  Mode:   only-missing")
+    print(f"  Total:  {len(all_papers)} papers")
+    print(f"  To enrich: {len(to_enrich)} (skipped: {skipped} already complete)")
+    if args.force:
+        print(f"  Mode:   --force (re-enrich all)")
+    if args.no_s2:
+        print(f"  --no-s2: S2 enrichment disabled")
     print(f"{'='*60}\n")
 
-    # Convert CSV rows to paper dicts
-    papers: list[dict[str, Any]] = []
-    for row in rows:
-        papers.append(dict(row))
-
-    # Filter to only-missing if requested
-    if args.only_missing:
-        before = len(papers)
-        papers = [
-            p for p in papers
-            if not p.get("abstract") or p.get("abstract") == "[abstract unavailable]"
-            or not p.get("citation_count") or p.get("citation_count") == "0"
-        ]
-        print(f"  --only-missing: {len(papers)} papers need enrichment (skipped {before - len(papers)} complete)\n")
+    if not to_enrich:
+        print("  Nothing to enrich. Use --force to re-enrich everything.\n")
+        return 0
 
     # ── Phase B: S2 enrichment ──
     print("── Phase B: S2 enrichment (via DOI) ──")
     if not args.no_s2:
-        eligible = sum(1 for p in papers if p.get("doi"))
-        print(f"  Papers with DOI: {eligible}/{len(papers)}")
-        enriched, s2_abstracts = enrich_from_s2(papers, enabled=True)
+        eligible = sum(1 for p in to_enrich if p.get("doi"))
+        print(f"  Papers with DOI: {eligible}/{len(to_enrich)}")
+        enriched, s2_abstracts = enrich_from_s2(to_enrich, enabled=True)
         print(f"  Result: {enriched} enriched, {s2_abstracts} abstracts from S2")
     else:
         print("  SKIPPED (--no-s2)")
     print()
 
     # ── Phase C: Abstract fallback ──
-    missing = sum(1 for p in papers if not p.get("abstract") or p.get("abstract") == "[abstract unavailable]")
-    have_abstract = len(papers) - missing
+    def _is_missing_abstract(p):
+        ab = p.get("abstract", "")
+        return not ab or ab == "[abstract unavailable]" or ab.startswith("[error:")
+
+    missing = sum(1 for p in to_enrich if _is_missing_abstract(p))
+    have_abstract = len(to_enrich) - missing
 
     print("── Phase C: Abstract fallback ──")
     print(f"  Abstracts status: {have_abstract} have, {missing} missing")
     if missing > 0:
         cr_count, arxiv_count, unavail = enrich_abstracts(
-            papers, crossref_enabled=True, arxiv_enabled=True,
+            to_enrich, crossref_enabled=True, arxiv_enabled=True,
         )
         print(f"  Result: Crossref={cr_count}, arXiv={arxiv_count}, unavailable={unavail}")
     else:
         print(f"  All abstracts already filled, nothing to do")
     print()
 
-    # ── Write ──
-    # Merge enriched data back into all rows (not just the filtered subset)
-    if args.only_missing:
-        enriched_by_id = {p["paper_id"]: p for p in papers}
-        for row in rows:
-            pid = row.get("paper_id", "")
-            if pid in enriched_by_id:
-                ep = enriched_by_id[pid]
-                for col in CSV_COLUMNS:
-                    if col not in HUMAN_COLUMNS and ep.get(col):
-                        row[col] = str(ep[col])
-        papers_to_write = [dict(r) for r in rows]
-    else:
-        papers_to_write = papers
+    # ── Merge back into all rows and write ──
+    enriched_by_id = {p["paper_id"]: p for p in to_enrich}
+    for row in all_papers:
+        pid = row.get("paper_id", "")
+        if pid in enriched_by_id:
+            ep = enriched_by_id[pid]
+            for col in CSV_COLUMNS:
+                if col in HUMAN_COLUMNS:
+                    continue
+                new_val = str(ep.get(col, ""))
+                old_val = row.get(col, "")
+                # Only overwrite if new value is richer
+                if new_val and (not old_val or new_val != old_val):
+                    row[col] = new_val
 
-    write_csv(papers_to_write, args.output, existing_human)
-    print(f"  Written: {len(papers_to_write)} papers to {args.output}")
+    write_csv(all_papers, args.output, existing_human)
+    print(f"  Written: {len(all_papers)} papers to {args.output}")
 
     # ── Summary ──
-    final_have = sum(
-        1 for p in papers_to_write
-        if p.get("abstract") and p["abstract"] not in ("", "[abstract unavailable]")
-    )
-    final_unavail = sum(
-        1 for p in papers_to_write
-        if p.get("abstract") == "[abstract unavailable]"
-    )
-    final_empty = sum(1 for p in papers_to_write if not p.get("abstract"))
+    def _count_abstracts(plist):
+        have = sum(1 for p in plist
+                   if p.get("abstract") and not p["abstract"].startswith("[")
+                   and p["abstract"] != "[abstract unavailable]")
+        errors = sum(1 for p in plist if p.get("abstract", "").startswith("[error:"))
+        unavail = sum(1 for p in plist if p.get("abstract") == "[abstract unavailable]")
+        empty = sum(1 for p in plist if not p.get("abstract"))
+        return have, errors, unavail, empty
 
+    have, errors, unavail, empty = _count_abstracts(all_papers)
     print(f"\n{'='*60}")
-    print(f"  DONE — enriched {len(papers)} papers")
-    print(f"  Abstracts: {final_have} available, {final_unavail} unavailable, {final_empty} empty")
+    print(f"  DONE — enriched {len(to_enrich)} papers")
+    print(f"  Abstracts: {have} available | {errors} error | {unavail} unavailable | {empty} empty")
+    if errors > 0:
+        print(f"  Errors written to abstract column — search for '[error:' to find them")
     print(f"  Output: {args.output}")
     print(f"{'='*60}\n")
 

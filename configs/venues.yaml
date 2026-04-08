@@ -1,0 +1,110 @@
+# Architecture-related venues (2022-2026)
+# DBLP keys: https://dblp.org/db/
+
+venues:
+  # ── Top-tier architecture conferences (ISCA/MICRO/HPCA "big three") ──
+  - id: ISCA
+    dblp_key: conf/isca
+
+  - id: MICRO
+    dblp_key: conf/micro
+
+  - id: HPCA
+    dblp_key: conf/hpca
+
+  # ── Architecture + OS + PL cross-area ──
+  - id: ASPLOS
+    dblp_key: conf/asplos
+
+  - id: OSDI
+    dblp_key: conf/osdi
+
+  - id: SOSP
+    dblp_key: conf/sosp
+
+  - id: EuroSys
+    dblp_key: conf/eurosys
+
+  - id: USENIX-ATC
+    dblp_key: conf/usenix
+
+  # ── Design automation & CAD ──
+  - id: DAC
+    dblp_key: conf/dac
+
+  - id: DATE
+    dblp_key: conf/date
+
+  - id: ICCAD
+    dblp_key: conf/iccad
+
+  - id: ICCD
+    dblp_key: conf/iccd
+
+  # ── Parallel / HPC / compilers ──
+  - id: SC
+    dblp_key: conf/sc
+
+  - id: PACT
+    dblp_key: conf/pact
+
+  - id: IPDPS
+    dblp_key: conf/ipdps
+
+  - id: ICS
+    dblp_key: conf/ics
+
+  - id: PLDI
+    dblp_key: conf/pldi
+
+  - id: CGO
+    dblp_key: conf/cgo
+
+  # # ── Embedded & HW/SW co-design ──
+  # - id: CODES-ISSS
+  #   dblp_key: conf/codes
+
+  # - id: CASES
+  #   dblp_key: conf/cases
+
+  # - id: LCTES
+  #   dblp_key: conf/lctes
+
+  # ── Security & architecture overlap ──
+  # - id: IEEE-SP
+  #   dblp_key: conf/sp
+
+  # - id: USENIX-Security
+  #   dblp_key: conf/uss
+
+  # - id: CCS
+  #   dblp_key: conf/ccs
+
+  # ── Journals ──
+  - id: IEEE-TC
+    dblp_key: journals/tc
+
+  - id: IEEE-CAL
+    dblp_key: journals/cal
+
+  - id: IEEE-TCAD
+    dblp_key: journals/tcad
+
+  - id: IEEE-TPDS
+    dblp_key: journals/tpds
+
+  - id: IEEE-TVLSI
+    dblp_key: journals/tvlsi
+
+  - id: IEEE-MICRO
+    dblp_key: journals/micro
+
+  - id: ACM-TACO
+    dblp_key: journals/taco
+
+  - id: JSA
+    dblp_key: journals/jsa
+
+date_range:
+  start: 2022
+  end: 2026

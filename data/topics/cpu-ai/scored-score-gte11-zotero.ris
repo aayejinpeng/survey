@@ -1,0 +1,213 @@
+TY  - JOUR
+TI  - RVME: An Efficient Matrix Engine Design Based on Matrix Extension of RISC-V
+AU  - Wanqi Chen
+PY  - 2025
+JO  - ICCD
+AB  - The rapid advancement of Deep Neural Networks (DNNs) continues to challenge traditional computing architectures, prompting the development of various hardware accelerators. However, insufficient software ecosystem support and limited programmability have significantly constrained the widespread deployment of such hardware accelerators. CPUs, owing to their versatility and widespread applicability, remain strong candidates for DNN acceleration. Several CPU vendors have proposed matrix extensions, but none has publicly disclosed the detailed microarchitecture, and researchers also lack simulation tools for evaluating architectures based on matrix extensions during early-stage design. To address these challenges, we propose RVME, an efficient matrix engine based on a matrix extension of RISC-V, designed as a CPU coprocessor, along with an open-source and configurable simulator built upon gem5. RVME introduces scale-out Outer Product Arrays (OPAs) that achieve bubble-free General Matrix Multiplication (GEMM) execution and superior power efficiency. We also introduce a cache-aware, loop-adaptive mapping framework for RVME that searches for mappings with optimal Energy-Delay Product (EDP). Experimental results show that RVME achieves up to $13.4 \times$ speedup and over $21.7 \times$ instruction count reduction compared to a RISC-V Vector Extension (RVV)-based design. Additionally, it delivers a peak energy-area efficiency of $1921.4 \text{GOPS} / \mathrm{W} / \text{mm}^{2}$, surpassing state-of-the-art DNN accelerators by more than $6 \times$.
+DO  - 10.1109/ICCD65941.2025.00092
+UR  - https://doi.org/10.1109/ICCD65941.2025.00092
+KW  - matrix extension
+KW  - vector extension
+KW  - RISC-V
+KW  - GEMM
+KW  - CPU
+KW  - RVV
+KW  - matrix
+KW  - vector
+KW  - neural
+N2  - relevance_score=41; mark=keep
+ER  - 
+
+TY  - JOUR
+TI  - RISCSparse: Point Cloud Inference Engine on RISC-V Processor
+AU  - Shangran Lin
+PY  - 2024
+JO  - ICCAD
+AB  - Machine learning on point clouds is increasingly accessible at the edge, notably in applications such as autonomous driving. However, the sparse and irregular nature of point clouds presents significant latency challenges on general-purpose hardware. RISC-V, with its evolving ecosystem, offers a promising platform for embedding intelligence at the edge due to its full-stack scalability. This paper focuses on the advanced point cloud operation known as submanifold convolution (SC), deploying submanifold sparse convolutional networks (SSCNs) on a RISC-V System-on-Chip (SoC) designed within the Chipyard framework. We address three critical bottlenecks of SSCNs-Rule Map Construction (Mapping), Gather-MatMul-Scatter (GMS), and uncombined operation - to meet the real-time inference requirement for the on-chip implementation. By leveraging the RISC-V Vector extension and Gemmini, an open-source full-stack DNN accelerator generator, we vectorize the Mapping process, offload GEMM-related operations to the Gemmini Systolic Array, and cooperatively use the Systolic Array and vector processing units to reduce the memory footprint. Our evaluations show that the RISC-V-based SSCNs implementation achieves an average of 11.73× and 13.1× overall speedups with a small workload compared to TorchSparse on Edge-CPU, a state-of-the-art point cloud inference engine, for 3D segmentation and detection tasks, respectively. When contrasting with TorchSparse on an Edge-GPU, our implementation still delivers a notable improvement, with average speedups of 1.63× for 3D segmentation and 1.07× for detection tasks.
+DO  - 10.1145/3676536.3676774
+UR  - https://doi.org/10.1145/3676536.3676774
+KW  - vector extension
+KW  - RISC-V
+KW  - matmul
+KW  - GEMM
+KW  - CPU
+KW  - accelerator
+KW  - systolic array
+KW  - vector
+KW  - inference
+N2  - relevance_score=34; mark=keep
+ER  - 
+
+TY  - JOUR
+TI  - SMEStencil: Optimizing High-Order Stencils on ARM Multicore Using SME Unit
+AU  - Yinuo Wang
+PY  - 2026
+JO  - IEEE-TPDS
+AB  - Matrix-accelerated stencil computation is a hot research topic, yet its application to 3 dimensional (3D) high-order stencils and HPC remains underexplored. With the emergence of Scalable Matrix Extension(SME) on ARMv9-A CPU, we analyze SME-based accelerating strategies and tailor an optimal approach for 3D high-order stencils. We introduce algorithmic optimizations based on Scalable Vector Extension(SVE) and SME unit to address strided memory accesses, alignment conflicts, and redundant accesses. We propose memory optimizations to boost on-package memory efficiency, and a novel multi-thread parallelism paradigm to overcome data-sharing challenges caused by the absence of shared data caches. SMEStencil sustains consistently high hardware utilization across diverse stencil shapes and dimensions. Our DMA-based inter-NUMA communication further mitigates NUMA effects and MPI limitations in hybrid parallelism. Combining all the innovations, SMEStencil outperforms state-of-the-art libraries on Nividia A100 GPGPU by up to 2.1×. Moreover, the performance improvements enabled by our optimizations translate directly to real-world HPC applications and enable Reverse Time Migration(RTM) real-world applications to yield 1.8x speedup versus highly-optimized Nvidia A100 GPGPU version.
+DO  - 10.1109/TPDS.2025.3650515
+UR  - https://doi.org/10.1109/TPDS.2025.3650515
+KW  - matrix extension
+KW  - vector extension
+KW  - SME
+KW  - CPU
+KW  - matrix
+KW  - vector
+N2  - relevance_score=32; mark=keep
+ER  - 
+
+TY  - JOUR
+TI  - VersaTile: Flexible Tiled Architectures via Associative Processors
+AU  - Kailin Yang
+PY  - 2025
+JO  - ACM-TACO
+AB  - As modern applications demand more data, processing-in-memory (PIM) architectures have emerged to address the challenges of data movement and parallelism. In this article, we propose VersaTile, a heterogeneous, fully CMOS-based tiled architecture that combines conventional out-of-order (OoO) superscalar CPUs and associative processors (APs), a type of CAM-based PIM core. Both CPUs and APs leverage the RISC-V ISA and its standard RVV vector extension. VersaTile fosters collaboration between multiple low-latency CPUs and high-throughput APs by sharing the same software stack and adopting a common CPU programming and compilation frontend. Moreover, we introduce tile stitching, a mechanism enabling the aggregation of multiple APs into a single vector super-unit with modest hardware support and no programming effort. Tile stitching allows us to configure an architecture for optimal performance across a wide range of applications. We provide a detailed case study, including a scalable floorplan example, as well as a comprehensive evaluation of various design points. Our experiments show that, when using only AP tiles, VersaTile can achieve, on average across the Phoenix benchmark suite and 3D convolution, a \(5.7\times\) speedup with respect to area-equivalent OoO CPU cores with SIMD ALUs (up to \(23\times\) ), and \(4.6\times\) with respect to an equivalent-sized monolithic AP baseline (up to \(29\times\) ). For applications with both DLP (vector) and ILP (scalar) regions, VersaTile can use APs and OoO cores collaboratively to achieve better performance than using either one of them only, up to \(4.4\times\) .
+DO  - 10.1145/3716873
+UR  - https://doi.org/10.1145/3716873
+KW  - vector extension
+KW  - RISC-V
+KW  - CPU
+KW  - RVV
+KW  - vector
+N2  - relevance_score=24; mark=keep
+ER  - 
+
+TY  - JOUR
+TI  - LiLo: Harnessing the on-Chip Accelerators in Intel CPUs for Compressed LLM Inference Acceleration
+AU  - Hyungyo Kim
+PY  - 2026
+JO  - HPCA
+AB  - The ever-growing sizes of large language models (LLMs) introduce significant infrastructure challenges due to their immense memory capacity demands. While the de facto approach has been to deploy multiple high-end GPUs, each with a limited memory capacity, the prohibitive cost of such systems has become a major barrier to the widespread deployment of frontier LLMs. As a result, CPU-based inference has become an appealing and cost-efficient alternative, since a CPU can offer an order of magnitude larger memory capacity at a fraction of the cost while providing competitive throughput for matrixvector multiplication with the latest Advanced Matrix Extensions (AMX). It not only broadens accessibility for users without multiGPU setups but also enables hyperscalers to leverage underutilized CPU servers to accommodate temporarily surging inference demand. Nevertheless, even CPU's large memory capacity has become insufficient to serve LLMs with hundreds of billions of parameters. Under the memory capacity constraint, we may offload parameters to storage devices and fetch them on demand, but doing so significantly degrades inference performance due to the high latency and low bandwidth of storage devices. To address this challenge, we propose LILO, an LLM inference framework that leverages In-memory Analytics Accelerator (IAA) in the latest Intel CPUs, to accelerate inference under memory capacity constraints. By storing model parameters in a compressed format and decompressing them on demand using IAA, LILO enables significantly reduced storage access during inference under memory capacity constraints while preserving the model accuracy and behavior. LILO orchestrates the concurrent execution of on-chip accelerators, i.e., IAA, Advanced Vector Extensions (AVX), and AMX, to facilitate high-throughput decompression alongside inference computation. Furthermore, LILO implements selective compression, a Mixture-of-Expert (MoE)-aware optimization that reduces the decompression overhead by up to 1.9×. We demonstrate that LILO reduces inference latency by up to 4.9× and 4.3× for Llama3-405B and DeepSeekR1, respectively, under memory capacity constraints compared to the baseline inference solely relying on storage-offloading without compression.
+DO  - 10.1109/HPCA68181.2026.11408577
+UR  - https://doi.org/10.1109/HPCA68181.2026.11408577
+KW  - AMX
+KW  - CPU
+KW  - accelerator
+KW  - LLM inference
+KW  - accelerate
+KW  - matrix
+KW  - vector
+KW  - inference
+N2  - relevance_score=23; mark=keep
+ER  - 
+
+TY  - JOUR
+TI  - Tensor Program Optimization for the RISC-V Vector Extension Using Probabilistic Programs
+AU  - Federico Nicolás Peccia
+PY  - 2025
+JO  - ICCAD
+AB  - RISC-V provides a flexible and scalable platform for applications ranging from embedded devices to high-performance computing clusters. Particularly, its RISC-V Vector Extension (RVV) becomes of interest for the acceleration of AI workloads. But writing software that efficiently utilizes the vector units of RISC-V CPUs without expert knowledge requires the programmer to rely on the autovectorization features of compilers or hand-crafted libraries like muRISCV-NN. Smarter approaches, like autotuning frameworks, have been missing the integration with the RISC-V RVV extension, thus heavily limiting the efficient deployment of complex AI workloads. In this paper, we present a workflow based on the TVM compiler to efficiently map AI workloads onto RISC-V vector units. Instead of relying on hand-crafted libraries, we integrated the RVV extension into TVM’s MetaSchedule framework, a probabilistic program framework for tensor operation tuning. We implemented different RISC-V SoCs on an FPGA and tuned a wide range of AI workloads on them. We found that our proposal shows a mean improvement of 46% in execution latency when compared against the autovectorization feature of GCC, and 29% against muRISCV-NN. Moreover, the binary resulting from our proposal has a smaller code memory footprint, making it more suitable for embedded devices. Finally, we also evaluated our solution on a commercially available RISC-V SoC implementing the RVV 1.0 Vector Extension and found our solution is able to find mappings that are 35% faster on average than the ones proposed by LLVM. We open-sourced our proposal for the community to expand it to target other RISC-V extensions.
+DO  - 10.1109/ICCAD66269.2025.11241007
+UR  - https://doi.org/10.1109/ICCAD66269.2025.11241007
+KW  - tensor
+KW  - vector extension
+KW  - RISC-V
+KW  - RVV
+KW  - AI
+KW  - vector
+N2  - relevance_score=23; mark=keep
+ER  - 
+
+TY  - JOUR
+TI  - GEMM the New Gem: The Inevitable Kernel and its Sensitivity to Compiler Optimizations and Libraries
+AU  - Siyuan Ma
+PY  - 2026
+JO  - IEEE-CAL
+AB  - When the SPEC benchmark suite was first assembled in 1989, matrix multiplication code matrix300 was one of the 10 programs in the suite, but it was discarded within 2-3 years due to the high sensitivity of matrix multiplication to compiler optimizations. However, with the advent of machine learning (ML), neural networks and generative AI (GenAI), matrix multiplication is an integral part of the modern computing workload. While sensitive, general matrix multiplication (GEMM) cannot be ignored anymore, especially if hardware that runs ML workloads is being evaluated. In this paper the sensitivity of GEMM workloads to libraries and compiler optimizations is studied. While it may be inevitable to use matmul kernels as a benchmark to understand the performance of accelerators for machine learning, understanding the sensitivity to compiler optimizations and software libraries can help to optimize and interpret the results appropriately. We observe more than 9000× variation in CPU runtimes and around 84× variation in GPU run times depending on the optimizations used.
+DO  - 10.1109/LCA.2026.3656423
+UR  - https://doi.org/10.1109/LCA.2026.3656423
+KW  - matmul
+KW  - GEMM
+KW  - CPU
+KW  - AI
+KW  - matrix
+KW  - neural
+N2  - relevance_score=23; mark=keep
+ER  - 
+
+TY  - JOUR
+TI  - RISC-V-Based GPGPU With Vector Capabilities for High-Performance Computing
+AU  - Jingzhou Li
+PY  - 2025
+JO  - IEEE-TVLSI
+AB  - General-purpose graphics processing units (GPGPUs) have become a leading platform for accelerating modern compute-intensive applications, such as large language models and generative artificial intelligence (AI). However, the lack of advanced open-source GPGPU microarchitectures has hindered high-performance research in this area. In this article, we present Ventus, a high-performance open-source GPGPU implementation built upon the RISC-V architecture with vector extension [RISC-V vector (RVV)]. Ventus introduces customized instructions and a comprehensive software toolchain to optimize performance. We deployed the design on a field programmable gate array (FPGA) platform consisting of 4 Xilinx VU19P devices, scaling up to 16 streaming multiprocessors (SMs) and supporting 256 warps. Experimental results demonstrate that Ventus exhibits key performance features comparable to commercial GPGPUs, achieving an average of 83.9% instruction reduction and 87.4% cycle per instruction (CPI) improvement over the leading open-source alternatives. Under 4-, 8-, and 16-thread configurations, Ventus maintains robust instruction per cycle (IPC) performance with values of 0.47, 0.40, and 0.32, respectively. In addition, the tensor core of Ventus attains an extra average reduction of 69.1% in instruction count and a 68.4% cycle reduction ratio when running AI-related workloads. These findings highlight Ventus as a promising solution for future high-performance GPGPU research and development, offering a robust open-source alternative to proprietary solutions. Ventus can be found on https://github.com/THU-DSP-LAB/ventus-gpgpu
+DO  - 10.1109/TVLSI.2025.3574427
+UR  - https://doi.org/10.1109/TVLSI.2025.3574427
+KW  - tensor
+KW  - vector extension
+KW  - RISC-V
+KW  - RVV
+KW  - AI
+KW  - vector
+N2  - relevance_score=23; mark=keep
+ER  - 
+
+TY  - JOUR
+TI  - Mix-GEMM: Extending RISC-V CPUs for Energy-Efficient Mixed-Precision DNN Inference Using Binary Segmentation
+AU  - Jordi Fornt
+PY  - 2025
+JO  - IEEE-TC
+AB  - Efficiently computing Deep Neural Networks (DNNs) has become a primary challenge in today's computers, especially on devices targeting mobile or edge applications. Recent progress on Post-Training Quantization (PTQ) and Quantization-Aware Training (QAT) has shown that the key to high energy efficiency lies in executing deep learning models with low- (8- to 5-bit) or ultra-low-precision (4- to 2-bit). Unfortunately, current Central Processing Unit (CPU) architectures and Instruction Set Architectures (ISAs) present severe limitations on the range of data sizes supported to compute DNN kernels. In this work, we present <italic>Mix-GEMM</italic>, a hardware-software co-designed architecture that enables RISC-V processors to efficiently compute arbitrary mixed-precision DNN kernels, supporting all data size combinations from 8- to 2-bit. By applying <italic>binary segmentation</italic>, our architecture can scale its throughput by decreasing the data size of the operands, resulting in a flexible approach capable of leveraging state-of-the-art QAT and PTQ to achieve high energy efficiency at a very low cost. Evaluating our <italic>Mix-GEMM</italic> architecture in a dual-issue in-order RISC-V processor shows that we are able to boost its performance and energy efficiency by up to <inline-formula><tex-math notation="LaTeX">$44\times$</tex-math><alternatives><mml:math display="inline"><mml:mn>44</mml:mn><mml:mo>×</mml:mo></mml:math><inline-graphic xlink:href="forntmas-ieq1-3500369.gif"/></alternatives></inline-formula> and <inline-formula><tex-math notation="LaTeX">$11\times$</tex-math><alternatives><mml:math display="inline"><mml:mn>11</mml:mn><mml:mo>×</mml:mo></mml:math><inline-graphic xlink:href="forntmas-ieq2-3500369.gif"/></alternatives></inline-formula> with respect to the baseline processor, with an area overhead of only 2%. This allows our extended processor to execute state-of-the-art DNNs with significantly higher performance and energy efficiency than the standard FP32 precision, while retaining almost the same model accuracy.
+DO  - 10.1109/TC.2024.3500369
+UR  - https://doi.org/10.1109/TC.2024.3500369
+KW  - RISC-V
+KW  - GEMM
+KW  - CPU
+KW  - quantization
+KW  - low-precision
+KW  - mixed-precision
+KW  - neural
+KW  - deep learning
+KW  - inference
+N2  - relevance_score=22; mark=keep
+ER  - 
+
+TY  - JOUR
+TI  - OpenFFT-SME: An Efficient Outer Product Pattern FFT Library on ARM SME CPUs
+AU  - Ruge Zhang
+PY  - 2024
+JO  - IPDPS
+AB  - Fast Fourier transform (FFT) is widely used in scientific and engineering computation. Recently developed matrix computation units for AI and high-performance computing provide new optimization opportunities for the FFT algorithm. Compared to dedicated matrix multiplication architectures like Intel AMXs, ARM’s Scalable Matrix Extension (SME) provides more flexible outer product instructions to construct matrix multiplications in software. To leverage ARM SME’s matrix multiplication capabilities, this paper proposes a novel optimized outer product pattern for the Cooley-Tukey FFT algorithm and presents OpenFFT-SME, the first FFT library for ARM SME based on this pattern. This pattern can reduce the number of outer product operations and memory accesses to the DFT matrix by exploiting the symmetric and periodic properties of twiddle factors in the DFT matrix. To further boost performance, OpenFFT-SME incorporates software pipelining to enhance execution pipelines in the assembly code kernels. Meanwhile, a butterfly network more suitable for this pattern is designed and integrated. Experiments demonstrate that OpenFFT-SME outperforms vectorization methods on ARM SME CPUs, achieving 3.60x (power of two) and 4.14x speedups (non-power of two) in double-precision compared to FFTW, 2.47x (power of two) and 3.21x (non-power of two) speedups in double-precision compared to FFTE, and speedups of 4.38x (power of two) and 7.02x (non-power of two) in single-precision compared to FFTW. Furthermore, we compare the advantages and disadvantages of our implementation against vectorization methods and analyze its performance characteristics through additional experiments.
+DO  - 10.1109/IPDPS57955.2024.00088
+UR  - https://doi.org/10.1109/IPDPS57955.2024.00088
+KW  - matrix extension
+KW  - SME
+KW  - AI
+KW  - matrix
+N2  - relevance_score=22; mark=keep
+ER  - 
+
+TY  - JOUR
+TI  - Mix-GEMM: An efficient HW-SW Architecture for Mixed-Precision Quantized Deep Neural Networks Inference on Edge Devices
+AU  - Enrico Reggiani
+PY  - 2023
+JO  - HPCA
+AB  - Deep Neural Network (DNN) inference based on quantized narrow-precision integer data represents a promising research direction toward efficient deep learning computations on edge and mobile devices. On one side, recent progress of Quantization-Aware Training (QAT) frameworks aimed at improving the accuracy of extremely quantized DNNs allows achieving results close to Floating-Point 32 (FP32), and provides high flexibility concerning the data sizes selection. Unfortunately, current Central Processing Unit (CPU) architectures and Instruction Set Architectures (ISAs) targeting resource-constrained devices present limitations on the range of data sizes supported to compute DNN kernels.This paper presents Mix-GEMM, a hardware-software co-designed architecture capable of efficiently computing quantized DNN convolutional kernels based on byte and sub-byte data sizes. Mix-GEMM accelerates General Matrix Multiplication (GEMM), representing the core kernel of DNNs, supporting all data size combinations from 8- to 2-bit, including mixed-precision computations, and featuring performance that scale with the decreasing of the computational data sizes. Our experimental evaluation, performed on representative quantized Convolutional Neural Networks (CNNs), shows that a RISC-V based edge System-on-Chip (SoC) integrating Mix-GEMM achieves up to 1.3 TOPS/W in energy efficiency, and up to 13.6 GOPS in throughput, gaining from 5.3× to 15.1× in performance over the OpenBLAS GEMM frameworks running on a commercial RISC-V based edge processor. By performing synthesis and Place and Route (PnR) of the enhanced SoC in Global Foundries 22nm FDX technology, we show that Mix-GEMM only accounts for 1% of the overall area consumption.
+DO  - 10.1109/HPCA56546.2023.10071076
+UR  - https://doi.org/10.1109/HPCA56546.2023.10071076
+KW  - RISC-V
+KW  - GEMM
+KW  - CPU
+KW  - quantization
+KW  - mixed-precision
+KW  - matrix
+KW  - neural
+KW  - deep learning
+KW  - inference
+N2  - relevance_score=21; mark=keep
+ER  - 
+
+TY  - JOUR
+TI  - Multi-Dimensional Vector ISA Extension for Mobile In-Cache Computing
+AU  - Alireza Khadem
+PY  - 2025
+JO  - HPCA
+AB  - In-cache computing technology transforms existing caches into long-vector compute units and offers low-cost alternatives to building expensive vector engines for mobile CPUs. Unfortunately, existing long-vector Instruction Set Architecture (ISA) extensions, such as RISC-V Vector Extension (RVV) and Arm Scalable Vector Extension (SVE), provide only onedimensional strided and random memory accesses. While this is sufficient for typical vector engines, it fails to effectively utilize the large Single Instruction, Multiple Data (SIMD) widths of incache vector engines. This is because mobile data-parallel kernels expose limited parallelism across a single dimension. Based on our analysis of mobile vector kernels, we introduce a long-vector Multi-dimensional Vector ISA Extension (MVE) for mobile in-cache computing. MVE achieves high SIMD resource utilization and enables flexible programming by abstracting cache geometry and data layout. The proposed ISA features multi-dimensional strided and random memory accesses and efficient dimension-level masked execution to encode parallelism across multiple dimensions. Using a wide range of data-parallel mobile workloads, we demonstrate that MVE offers significant performance and energy reduction benefits of $2.9 \times$ and $8.8 \times$, on average, compared to the SIMD units of a commercial mobile processor, at an area overhead of 3.6%.
+DO  - 10.1109/HPCA61900.2025.00045
+UR  - https://doi.org/10.1109/HPCA61900.2025.00045
+KW  - vector extension
+KW  - RISC-V
+KW  - RVV
+KW  - ISA extension
+KW  - vector
+N2  - relevance_score=21; mark=keep
+ER  - 

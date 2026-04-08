@@ -1,117 +1,150 @@
 # Survey Pipeline
 
-`workspace/survey` 是一个面向体系结构 / 计算机系统论文调研的模块化流水线。当前主链路已经拆成独立脚本，输入输出清晰，适合按 venue/year 拉论文、做 enrichment，再按 topic 生成评分结果。
+面向体系结构 / 计算机系统论文调研的模块化流水线。从 DBLP 按会议/期刊抓取论文，经 S2/Crossref/arXiv 富化摘要，按主题关键词打分，通过 Web 工具审阅标记，最终从 Zotero 同步 PDF。
 
-## 当前状态
+## Pipeline 状态
 
 | Step | 脚本 | 状态 | 输出 |
 |------|------|------|------|
-| 1 | `fetch_dblp.py` | 已实现 | `data/db/*.csv` |
-| 2 | `enrich_papers.py` | 已实现 | `data/enriched/*.csv` |
-| 3 | `score_papers.py` | 已实现 | `data/topics/{topic}/scored.csv` |
-| 4 | `filter_papers.py` | 计划中 | `filtered.csv` |
-| 5 | `build_graph.py` | 计划中 | `citation-graph.*` |
-| 6 | `update.sh` | 计划中 | 增量编排 |
+| 1 | `fetch_dblp.py` | ✅ | `data/db/*.csv` |
+| 2 | `enrich_papers.py` | ✅ | `data/enriched/*.csv` |
+| 3 | `score_papers.py` | ✅ | `data/topics/{topic}/scored.csv + top{10,50,100}.csv` |
+| 3.5 | `slice_csv.py` | ✅ | 按 score 阈值截取 |
+| 4 | `review_server.py` + `review.html` | ✅ | Web 审阅，标记写回 CSV |
+| 5 | `sync_zotero.py` | ✅ | `pdfs/` |
+| 6 | `build_graph.py` | ⬜ | 引用图可视化 |
 
-## 目录
+## 当前数据（2026-04-08）
 
-```text
-workspace/survey/
-  fetch_dblp.py
-  enrich_papers.py
-  score_papers.py
-  survey_crawler.py
+- **14,600 篇论文**，103 个 venue×year CSV
+- **27 个会议** + **7 个期刊**，覆盖 2022-2026
+- **摘要覆盖率 92%**
+- CPU AI 主题：score >= 11 共 196 篇，12 篇已标记 keep
 
-  configs/
-    venues.yaml
-    topic-cpu-ai.yaml
+## 目录结构
 
-  data/
-    db/
-    enriched/
-    topics/
-
-  doc/
-    survey-crawler.md
-
-  plan/
-    README.md
-    step1-fetch-dblp.md
-    step2-enrich-papers.md
-    step3-score-papers.md
-    step4-filter.md
-    step5-build-graph.md
-    step6-update.md
+```
+survey/
+├── configs/
+│   ├── venues.yaml              # 会议/期刊 DBLP 配置
+│   └── topic-cpu-ai.yaml        # 主题关键词（term + weight）
+├── data/
+│   ├── db/                      # 103 CSV，原始 DBLP 数据
+│   ├── enriched/                # 103 CSV，富化后数据
+│   └── topics/cpu-ai/           # 打分 + 截取结果
+│       ├── scored.csv           # 全量 14,600 篇
+│       ├── scored-score-gte11.csv  # 196 篇
+│       ├── top10/50/100.csv
+│       └── doi-list.txt         # keep 论文的 DOI 列表
+├── pdfs/                        # PDF 下载目录
+├── tools/
+│   └── s2_fetch.py              # S2 batch API 客户端
+├── fetch_dblp.py                # Step 1: DBLP 抓取
+├── enrich_papers.py             # Step 2: S2/Crossref/arXiv 富化
+├── score_papers.py              # Step 3: 关键词打分
+├── slice_csv.py                 # Step 3.5: CSV 截取
+├── review_server.py             # Step 4: Web 审阅服务端
+├── review.html                  # Step 4: Web 审阅前端
+├── sync_zotero.py               # Step 5: Zotero PDF 同步
+├── survey_crawler.py            # (旧版，保留)
+├── timeline.md                  # 时间线
+├── doc/                         # 详细文档
+└── plan/                        # 各 step 设计文档
 ```
 
 ## 快速开始
 
-### 1. 拉取基础论文列表
-
 ```bash
+# Step 1: 从 DBLP 抓取论文列表
 python3 fetch_dblp.py --config configs/venues.yaml --output-dir data/db/
-```
 
-### 2. 补齐摘要和引用信息
-
-```bash
+# Step 2: 富化摘要和引用数（S2 batch → Crossref → arXiv）
 python3 enrich_papers.py --input-dir data/db/ --output-dir data/enriched/
-```
 
-### 3. 按 topic 打分
-
-```bash
-python3 score_papers.py \
-    --input-dir data/enriched/ \
+# Step 3: 按主题关键词打分
+python3 score_papers.py --input-dir data/enriched/ \
     --topic-config configs/topic-cpu-ai.yaml \
     --output-dir data/topics/cpu-ai/
+
+# Step 3.5: 截取高分子集
+python3 slice_csv.py --input data/topics/cpu-ai/scored.csv --min-score 11
+
+# Step 4: 启动 Web 审阅（浏览器打开 http://localhost:8088）
+python3 review_server.py \
+    --csv data/topics/cpu-ai/scored-score-gte11.csv \
+    --topic configs/topic-cpu-ai.yaml
+
+# Step 5: 从 Zotero 同步 PDF
+python3 sync_zotero.py \
+    --input data/topics/cpu-ai/scored-score-gte11.csv \
+    --output-dir pdfs/cpu-ai/
 ```
-
-输出文件：
-
-- `data/topics/cpu-ai/scored.csv`
 
 ## 数据流
 
-```text
+```
 configs/venues.yaml
       ↓
-fetch_dblp.py
+fetch_dblp.py → data/db/{venue}-{year}.csv
       ↓
-data/db/{venue}-{year}.csv
-      ↓
-enrich_papers.py
-      ↓
-data/enriched/{venue}-{year}.csv
-      ↓
+enrich_papers.py → data/enriched/{venue}-{year}.csv
+      ↓                          (S2 batch + Crossref + arXiv)
 score_papers.py + configs/topic-*.yaml
       ↓
 data/topics/{topic}/scored.csv
+      ↓
+slice_csv.py → scored-score-gte{N}.csv
+      ↓
+review_server.py → Web 审阅标记 (keep/core/skip)
+      ↓
+sync_zotero.py → pdfs/  (从 Zotero 本地 API 拉 PDF)
 ```
 
-## 配置文件
+## 配置说明
 
-### `configs/venues.yaml`
+### venues.yaml
 
-定义全局 venue 列表和年份范围，供 Step 1 使用。
+```yaml
+venues:
+  - id: ISCA
+    dblp_key: conf/isca          # 会议
+  - id: IPDPS
+    dblp_key: conf/ipps          # key 和页面名不同
+    dblp_abbr: ipdps
+  - id: IEEE-TC
+    dblp_key: journals/tc        # 期刊（自动从 index 解析 volume）
+date_range:
+  start: 2022
+  end: 2026
+```
 
-### `configs/topic-*.yaml`
+### topic-cpu-ai.yaml
 
-定义 topic 名称、关键词和可选 filter，供 Step 3 使用。
+```yaml
+topic: "CPU AI acceleration"
+keywords:
+  - term: "AMX"
+    weight: 10          # 核心关键词，高分
+  - term: "tensor"
+    weight: 3
+  - term: "AI"
+    weight: 1           # 通用词，低分扩大召回
+```
 
-当前示例：
+**打分阈值：** High(>=10) / Medium(>=5) / Low(>=1) / None(0)
 
-- `configs/topic-cpu-ai.yaml`
+## Web 审阅工具
 
-## 重要说明
+`review_server.py` + `review.html` 提供本地 Web 审阅界面：
 
-- 当前推荐入口是模块化三步：`fetch_dblp.py -> enrich_papers.py -> score_papers.py`
-- `survey_crawler.py` 是早期一体化原型，不是当前主路径
-- Step 4-6 还在 `plan/` 中定义，README 不把它们写成已实现功能
-- `enrich_papers.py` 在没有 `SEMANTIC_SCHOLAR_API_KEY` 时会比较容易被 S2 限流
+- **2x2 网格**：同时展示 4 篇论文
+- **关键词金色高亮**：按权重从暗到亮金色渐变
+- **自定义标签**：keep / core / related / skip + 自由输入
+- **键盘快捷键**：`1234`=keep, `qwer`=skip, `←→`=翻页, `Ctrl+S`=保存
+- **持久化**：标记写回 CSV 的 keep/notes 列
 
 ## 进一步阅读
 
-- 用户手册：[doc/survey-crawler.md](/root/opencute/workspace/survey/doc/survey-crawler.md)
-- 总体方案：[plan/README.md](/root/opencute/workspace/survey/plan/README.md)
-- 时间线：[timeline.md](/root/opencute/workspace/survey/timeline.md)
+- 时间线：[timeline.md](timeline.md)
+- 总体方案：[plan/README.md](plan/README.md)
+- 旧版文档：[doc/survey-crawler.md](doc/survey-crawler.md)

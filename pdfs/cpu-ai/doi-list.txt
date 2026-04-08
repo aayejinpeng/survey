@@ -1,0 +1,48 @@
+# 1. RVME: An Efficient Matrix Engine Design Based on Matrix Extension of RISC-V
+#    ICCD 2025
+https://doi.org/10.1109/ICCD65941.2025.00092
+
+# 2. RISCSparse: Point Cloud Inference Engine on RISC-V Processor
+#    ICCAD 2024
+https://doi.org/10.1145/3676536.3676774
+
+# 3. SMEStencil: Optimizing High-Order Stencils on ARM Multicore Using SME Unit
+#    IEEE-TPDS 2026
+https://doi.org/10.1109/TPDS.2025.3650515
+
+# 4. VersaTile: Flexible Tiled Architectures via Associative Processors
+#    ACM-TACO 2025
+https://doi.org/10.1145/3716873
+
+# 5. LiLo: Harnessing the on-Chip Accelerators in Intel CPUs for Compressed LLM Inference Acceleration
+#    HPCA 2026
+https://doi.org/10.1109/HPCA68181.2026.11408577
+
+# 6. Tensor Program Optimization for the RISC-V Vector Extension Using Probabilistic Programs
+#    ICCAD 2025
+https://doi.org/10.1109/ICCAD66269.2025.11241007
+
+# 7. GEMM the New Gem: The Inevitable Kernel and its Sensitivity to Compiler Optimizations and Libraries
+#    IEEE-CAL 2026
+https://doi.org/10.1109/LCA.2026.3656423
+
+# 8. RISC-V-Based GPGPU With Vector Capabilities for High-Performance Computing
+#    IEEE-TVLSI 2025
+https://doi.org/10.1109/TVLSI.2025.3574427
+
+# 9. Mix-GEMM: Extending RISC-V CPUs for Energy-Efficient Mixed-Precision DNN Inference Using Binary Segmentation
+#    IEEE-TC 2025
+https://doi.org/10.1109/TC.2024.3500369
+
+# 10. OpenFFT-SME: An Efficient Outer Product Pattern FFT Library on ARM SME CPUs
+#    IPDPS 2024
+https://doi.org/10.1109/IPDPS57955.2024.00088
+
+# 11. Mix-GEMM: An efficient HW-SW Architecture for Mixed-Precision Quantized Deep Neural Networks Inference on Edge Devices
+#    HPCA 2023
+https://doi.org/10.1109/HPCA56546.2023.10071076
+
+# 12. Multi-Dimensional Vector ISA Extension for Mobile In-Cache Computing
+#    HPCA 2025
+https://doi.org/10.1109/HPCA61900.2025.00045
+

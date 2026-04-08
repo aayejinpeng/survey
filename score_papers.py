@@ -179,8 +179,8 @@ def score_paper(
 
 
 RELEVANCE_THRESHOLDS = [
-    (5, "High"),
-    (2, "Medium"),
+    (10, "High"),
+    (5, "Medium"),
     (1, "Low"),
 ]
 
@@ -319,10 +319,9 @@ def main(argv: list[str] | None = None) -> int:
     for p in scored:
         dist[p["relevance"]] += 1
     print(f"\nDistribution:")
-    print(f"  High:   {dist['High']:>4} papers (score >= 5)")
-    print(f"  Medium: {dist['Medium']:>4} papers (score >= 2)")
-    print(f"  Low:    {dist['Low']:>4} papers (score = 1)")
-    print(f"  None:   {dist['None']:>4} papers (score = 0)")
+    for threshold, label in RELEVANCE_THRESHOLDS:
+        print(f"  {label:6s}  {dist[label]:>4} papers (score >= {threshold})")
+    print(f"  {'None':6s}  {dist['None']:>4} papers (score = 0)")
 
     # Apply min-relevance filter for output
     if args.min_relevance:
@@ -337,9 +336,20 @@ def main(argv: list[str] | None = None) -> int:
         slug = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-") if topic != "unknown" else "scored"
         output_path = os.path.join(args.output_dir, "scored.csv")
 
-    # Write
+    # Write scored.csv
     count = write_scored_csv(scored, output_path)
     print(f"\nOutput: {output_path} ({count} papers)")
+
+    # Write top-N CSVs (only papers with score > 0)
+    relevant = [p for p in scored if p["relevance_score"] > 0]
+    output_dir = os.path.dirname(output_path)
+    for n in (10, 50, 100):
+        top_n = relevant[:n]
+        if not top_n:
+            break
+        top_path = os.path.join(output_dir, f"top{n}.csv")
+        n_count = write_scored_csv(top_n, top_path)
+        print(f"Output: {top_path} ({n_count} papers)")
 
     return 0
 

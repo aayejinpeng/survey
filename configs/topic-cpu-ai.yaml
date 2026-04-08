@@ -34,8 +34,6 @@ keywords:
     weight: 2
   - term: "RVV"
     weight: 10
-  - term: "vector extension"
-    weight: 2
   - term: "custom instruction"
     weight: 2
   - term: "ISA extension"

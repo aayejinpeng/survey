@@ -25,6 +25,10 @@ _BATCH_MAX = 500
 # With API key: 1 req / s
 _DEFAULT_RPS = 0.33
 _KEYED_RPS = 1.0
+_DEFAULT_SEARCH_FIELDS = (
+    "paperId,title,abstract,year,venue,publicationVenue,externalIds,"
+    "publicationDate,fieldsOfStudy,citationCount,openAccessPdf"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +146,83 @@ def get_paper(paper_id: str, fields: str = "") -> dict[str, Any] | None:
     encoded = urllib.parse.quote(paper_id, safe="")
     url = f"{_API_BASE}/paper/{encoded}?fields={fields}"
     return _request(url)
+
+
+def search(
+    query: str,
+    max_results: int = 10,
+    fields: str = "",
+    offset: int = 0,
+    year: str | None = None,
+    venue: str | None = None,
+) -> dict[str, Any]:
+    """Search papers by query string.
+
+    Returns the raw Semantic Scholar search payload shape that enrich_papers.py
+    expects: {"total": ..., "data": [...]}.
+    """
+    if not fields:
+        fields = _DEFAULT_SEARCH_FIELDS
+
+    params: dict[str, Any] = {
+        "query": query,
+        "limit": max_results,
+        "offset": offset,
+        "fields": fields,
+    }
+    if year:
+        params["year"] = year
+    if venue:
+        params["venue"] = venue
+
+    url = f"{_API_BASE}/paper/search?{urllib.parse.urlencode(params)}"
+    payload = _request(url)
+    if payload is None:
+        return {"total": 0, "data": []}
+    data = payload.get("data") or []
+    return {
+        "total": payload.get("total", len(data)),
+        "offset": offset,
+        "data": data,
+    }
+
+
+def search_bulk(
+    query: str,
+    max_results: int = 100,
+    fields: str = "",
+    token: str | None = None,
+    year: str | None = None,
+    venue: str | None = None,
+) -> dict[str, Any]:
+    """Bulk-search papers for a broad query.
+
+    This still searches one query at a time, but it is useful for venue/year
+    candidate harvesting before local title matching.
+    """
+    if not fields:
+        fields = _DEFAULT_SEARCH_FIELDS
+
+    params: dict[str, Any] = {
+        "query": query,
+        "limit": max_results,
+        "fields": fields,
+    }
+    if token:
+        params["token"] = token
+    if year:
+        params["year"] = year
+    if venue:
+        params["venue"] = venue
+
+    url = f"{_API_BASE}/paper/search/bulk?{urllib.parse.urlencode(params)}"
+    payload = _request(url)
+    if payload is None:
+        return {"token": None, "data": []}
+    return {
+        "token": payload.get("token"),
+        "data": payload.get("data") or [],
+    }
 
 
 # ---------------------------------------------------------------------------

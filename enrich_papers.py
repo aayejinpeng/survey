@@ -164,6 +164,11 @@ def _clean_crossref_abstract(raw: str) -> str:
     return text.strip()
 
 
+def _normalize_title(title: str) -> str:
+    """Normalize titles for lightweight exact matching."""
+    return re.sub(r"[^a-z0-9]+", " ", title.lower()).strip()
+
+
 # ---------------------------------------------------------------------------
 # Enrichment: S2
 # ---------------------------------------------------------------------------
@@ -256,7 +261,7 @@ def enrich_from_s2_title_search(
             continue
 
         result, err = _call_with_429_retry(
-            lambda t=title: s2_fetch.search(t, max_results=1, fields=_S2_ENRICH_FIELDS),
+            lambda t=title: s2_fetch.search(t, max_results=5, fields=_S2_ENRICH_FIELDS),
             max_retries=3,
             base_wait=3.0,
             label=f"#{idx+1}",
@@ -270,12 +275,19 @@ def enrich_from_s2_title_search(
             paper["abstract"] = "[abstract unavailable]"
             continue
 
-        s2_paper = data[0]
-        # Verify it's a reasonable match (same year or same venue)
-        s2_year = s2_paper.get("year")
-        paper_year = paper.get("year", "")
-        if s2_year and str(s2_year) != str(paper_year):
-            # Year mismatch — likely wrong paper, skip
+        paper_year = str(paper.get("year", "")).strip()
+        paper_title_norm = _normalize_title(title)
+        s2_paper = None
+        for candidate in data:
+            candidate_title = candidate.get("title") or ""
+            candidate_title_norm = _normalize_title(candidate_title)
+            candidate_year = str(candidate.get("year", "")).strip()
+            same_title = candidate_title_norm == paper_title_norm
+            same_year = not paper_year or not candidate_year or candidate_year == paper_year
+            if same_title and same_year:
+                s2_paper = candidate
+                break
+        if s2_paper is None:
             paper["abstract"] = "[abstract unavailable]"
             continue
 
@@ -290,7 +302,91 @@ def enrich_from_s2_title_search(
         # Rate limit: S2 free tier ~1 req/s without key
         time.sleep(1.0)
 
-    print(f"  Title search result: {enriched}/{len(missing)} enriched, {abstracts} abstracts")
+    return enriched, abstracts
+
+
+def enrich_from_s2_venue_bulk(
+    papers: list[dict[str, Any]],
+) -> tuple[int, int]:
+    """Bulk-fetch venue/year candidate pools, then exact-match titles locally.
+
+    This reduces request count for conference-program CSVs where many papers
+    share the same venue and year.
+    """
+    missing = [
+        p for p in papers
+        if not p.get("doi")
+        and (not p.get("abstract") or p["abstract"] in ("", "[abstract unavailable]")
+             or p["abstract"].startswith("[error:"))
+    ]
+    if not missing:
+        return 0, 0
+
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for paper in missing:
+        venue = str(paper.get("venue", "")).strip()
+        year = str(paper.get("year", "")).strip()
+        if not venue or not year:
+            continue
+        groups.setdefault((venue, year), []).append(paper)
+
+    if not groups:
+        return 0, 0
+
+    enriched = 0
+    abstracts = 0
+    for (venue, year), group in groups.items():
+        query = venue
+        limit = min(max(len(group) * 4, 25), 200)
+        result, err = _call_with_429_retry(
+            lambda q=query, y=year, v=venue, m=limit: s2_fetch.search_bulk(
+                q,
+                max_results=m,
+                fields=_S2_ENRICH_FIELDS,
+                year=y,
+                venue=v,
+            ),
+            max_retries=3,
+            base_wait=3.0,
+            label=f"bulk {venue} {year}",
+        )
+        if err or not result:
+            continue
+
+        candidates = result.get("data") or []
+        if not candidates:
+            continue
+
+        by_title: dict[str, dict[str, Any]] = {}
+        for candidate in candidates:
+            candidate_title = candidate.get("title") or ""
+            candidate_year = str(candidate.get("year", "")).strip()
+            norm_title = _normalize_title(candidate_title)
+            if not norm_title:
+                continue
+            if candidate_year and candidate_year != year:
+                continue
+            by_title.setdefault(norm_title, candidate)
+
+        matched_here = 0
+        for paper in group:
+            norm_title = _normalize_title(str(paper.get("title", "")))
+            if not norm_title:
+                continue
+            candidate = by_title.get(norm_title)
+            if not candidate:
+                continue
+            _apply_s2_data(paper, candidate)
+            enriched += 1
+            matched_here += 1
+            if paper.get("abstract") and not str(paper["abstract"]).startswith("["):
+                abstracts += 1
+
+        if matched_here:
+            print(
+                f"  Bulk-matched {matched_here}/{len(group)} papers for venue={venue!r}, year={year}"
+            )
+
     return enriched, abstracts
 
 
@@ -399,8 +495,13 @@ def enrich_abstracts(
                 continue
 
         # Layer 3: Mark unavailable
-        if not paper.get("abstract"):
-            paper["abstract"] = "[abstract unavailable]"
+        if (
+            not paper.get("abstract")
+            or paper.get("abstract") == "[abstract unavailable]"
+            or (paper.get("abstract") or "").startswith("[error:")
+        ):
+            if not paper.get("abstract"):
+                paper["abstract"] = "[abstract unavailable]"
             unavailable += 1
 
     return cr_count, arxiv_count, unavailable
@@ -535,7 +636,18 @@ def enrich_file(
                  or p["abstract"].startswith("[error:"))
         )
         if no_doi_missing > 0:
-            print(f"  ── S2 title search ({no_doi_missing} papers without DOI) ──")
+            print(f"  ── S2 venue/year bulk candidate match ({no_doi_missing} papers without DOI) ──")
+            bulk_enriched, bulk_abstracts = enrich_from_s2_venue_bulk(to_enrich)
+            print(f"  Venue/year bulk result: {bulk_enriched} enriched, {bulk_abstracts} abstracts")
+
+            no_doi_missing = sum(
+                1 for p in to_enrich
+                if not p.get("doi")
+                and (not p.get("abstract") or p["abstract"] in ("", "[abstract unavailable]")
+                     or p["abstract"].startswith("[error:"))
+            )
+        if no_doi_missing > 0:
+            print(f"  ── S2 title search fallback ({no_doi_missing} papers without DOI) ──")
             ts_enriched, ts_abstracts = enrich_from_s2_title_search(to_enrich)
             print(f"  Title search result: {ts_enriched} enriched, {ts_abstracts} abstracts")
     else:

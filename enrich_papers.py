@@ -230,6 +230,70 @@ def enrich_from_s2(
     return enriched, abstracts
 
 
+def enrich_from_s2_title_search(
+    papers: list[dict[str, Any]],
+) -> tuple[int, int]:
+    """Enrich papers without DOI via S2 title search API (one-by-one).
+    Only processes papers that still have no abstract and no DOI.
+    Returns (enriched_count, abstract_filled).
+    """
+    missing = [
+        (i, p) for i, p in enumerate(papers)
+        if not p.get("doi")
+        and (not p.get("abstract") or p["abstract"] in ("", "[abstract unavailable]")
+             or p["abstract"].startswith("[error:"))
+    ]
+    if not missing:
+        return 0, 0
+
+    print(f"  Title-searching {len(missing)} papers without DOI from S2...", file=sys.stderr)
+    enriched = 0
+    abstracts = 0
+
+    for idx, (orig_idx, paper) in enumerate(missing):
+        title = paper.get("title", "").strip()
+        if not title:
+            continue
+
+        result, err = _call_with_429_retry(
+            lambda t=title: s2_fetch.search(t, max_results=1, fields=_S2_ENRICH_FIELDS),
+            max_retries=3,
+            base_wait=3.0,
+            label=f"#{idx+1}",
+        )
+        if err or not result:
+            paper["abstract"] = err or "[abstract unavailable]"
+            continue
+
+        data = result.get("data") or []
+        if not data:
+            paper["abstract"] = "[abstract unavailable]"
+            continue
+
+        s2_paper = data[0]
+        # Verify it's a reasonable match (same year or same venue)
+        s2_year = s2_paper.get("year")
+        paper_year = paper.get("year", "")
+        if s2_year and str(s2_year) != str(paper_year):
+            # Year mismatch — likely wrong paper, skip
+            paper["abstract"] = "[abstract unavailable]"
+            continue
+
+        _apply_s2_data(paper, s2_paper)
+        enriched += 1
+        if paper.get("abstract") and not paper["abstract"].startswith("["):
+            abstracts += 1
+            print(f"    [{idx+1}/{len(missing)}] Found: {title[:60]}...")
+        else:
+            print(f"    [{idx+1}/{len(missing)}] No abstract: {title[:60]}...")
+
+        # Rate limit: S2 free tier ~1 req/s without key
+        time.sleep(1.0)
+
+    print(f"  Title search result: {enriched}/{len(missing)} enriched, {abstracts} abstracts")
+    return enriched, abstracts
+
+
 # ---------------------------------------------------------------------------
 # Enrichment: Crossref fallback
 # ---------------------------------------------------------------------------
@@ -462,6 +526,18 @@ def enrich_file(
         print(f"  Papers with DOI: {eligible}/{len(to_enrich)}")
         enriched, s2_abstracts = enrich_from_s2(to_enrich)
         print(f"  S2 result: {enriched} enriched, {s2_abstracts} abstracts")
+
+        # Phase B2: Title search for papers without DOI
+        no_doi_missing = sum(
+            1 for p in to_enrich
+            if not p.get("doi")
+            and (not p.get("abstract") or p["abstract"] in ("", "[abstract unavailable]")
+                 or p["abstract"].startswith("[error:"))
+        )
+        if no_doi_missing > 0:
+            print(f"  ── S2 title search ({no_doi_missing} papers without DOI) ──")
+            ts_enriched, ts_abstracts = enrich_from_s2_title_search(to_enrich)
+            print(f"  Title search result: {ts_enriched} enriched, {ts_abstracts} abstracts")
     else:
         print("  SKIPPED (--no-s2)")
 

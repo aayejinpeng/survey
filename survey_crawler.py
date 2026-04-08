@@ -116,23 +116,50 @@ def save_state(path: str, state: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _fetch_html(url: str) -> str:
+def _fetch_html(url: str, retries: int = 2) -> str:
+    """Fetch HTML with retry for transient errors (429, 5xx)."""
     req = urllib.request.Request(url, headers={"User-Agent": "survey-crawler/0.1"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return resp.read().decode("utf-8")
+    last_err: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return resp.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            last_err = exc
+            if exc.code in (429, 502, 503, 504) and attempt < retries:
+                wait = 2 * (attempt + 1)
+                print(f"    HTTP {exc.code}, retry {attempt+1}/{retries} in {wait}s...")
+                time.sleep(wait)
+                continue
+            raise
+        except (urllib.error.URLError, OSError) as exc:
+            last_err = exc
+            if attempt < retries:
+                time.sleep(2 * (attempt + 1))
+                continue
+            raise
+    raise RuntimeError(f"Fetch failed after {retries} retries: {last_err}")
 
 
-def fetch_venue_papers(venue_id: str, dblp_key: str, year: int) -> list[dict[str, Any]]:
-    """Fetch all research papers from a DBLP proceedings page."""
+def fetch_venue_papers(venue_id: str, dblp_key: str, year: int) -> tuple[list[dict[str, Any]], bool]:
+    """Fetch all research papers from a DBLP proceedings page.
+    Returns (papers, success).
+    """
     abbr = dblp_key.split("/")[-1]
     url = f"https://dblp.org/db/{dblp_key}/{abbr}{year}"
     print(f"  Fetching {url} ...", end=" ")
 
     try:
         html = _fetch_html(url)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            print(f"SKIP (404, proceedings not found)")
+        else:
+            print(f"FAILED (HTTP {exc.code})")
+        return [], False
     except Exception as exc:
-        print(f"FAILED: {exc}")
-        return []
+        print(f"FAILED ({exc})")
+        return [], False
 
     # Find entry boundaries
     entry_starts = [
@@ -197,30 +224,35 @@ def fetch_venue_papers(venue_id: str, dblp_key: str, year: int) -> list[dict[str
         })
 
     print(f"{len(papers)} papers")
-    return papers
+    return papers, True
 
 
-def fetch_all_venues(config: dict[str, Any]) -> list[dict[str, Any]]:
-    """Fetch papers from all configured venues × years."""
+def fetch_all_venues(config: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Fetch papers from all configured venues × years.
+    Returns (papers, failures) where failures = [{venue, year, error}].
+    """
     venues = config.get("venues", [])
     date_range = config.get("date_range", {})
     start_year = int(date_range.get("start", 2020))
     end_year = int(date_range.get("end", datetime.now().year))
 
     all_papers: list[dict[str, Any]] = []
+    failures: list[dict[str, str]] = []
     seen_ids: set[str] = set()
 
     for venue in venues:
         vid = venue["id"]
         dblp_key = venue["dblp_key"]
         for year in range(start_year, end_year + 1):
-            papers = fetch_venue_papers(vid, dblp_key, year)
+            papers, success = fetch_venue_papers(vid, dblp_key, year)
+            if not success:
+                failures.append({"venue": vid, "year": str(year), "error": "fetch failed"})
             for p in papers:
                 if p["paper_id"] not in seen_ids:
                     seen_ids.add(p["paper_id"])
                     all_papers.append(p)
 
-    return all_papers
+    return all_papers, failures
 
 
 # ---------------------------------------------------------------------------
@@ -545,6 +577,20 @@ def _build_parser() -> argparse.ArgumentParser:
         "--no-s2", action="store_true",
         help="Skip S2 enrichment only",
     )
+
+    enrich_parser = subparsers.add_parser("enrich", help="Enrich existing CSV (no DBLP fetch)")
+    enrich_parser.add_argument("--input", required=True, help="Input CSV path")
+    enrich_parser.add_argument("--output", required=True, help="Output CSV path (can be same as input)")
+    enrich_parser.add_argument("--state", required=True, help="State JSON path")
+    enrich_parser.add_argument(
+        "--no-s2", action="store_true",
+        help="Skip S2 enrichment only",
+    )
+    enrich_parser.add_argument(
+        "--only-missing", action="store_true",
+        help="Only enrich papers with empty abstract/citation_count",
+    )
+
     return parser
 
 
@@ -572,8 +618,13 @@ def crawl_main(args: argparse.Namespace) -> int:
 
     # ── Phase A: DBLP ──
     print("── Phase A: DBLP proceedings fetch ──")
-    papers = fetch_all_venues(config)
-    print(f"  Result: {len(papers)} papers from DBLP\n")
+    papers, fetch_failures = fetch_all_venues(config)
+    print(f"  Result: {len(papers)} papers from DBLP")
+    if fetch_failures:
+        print(f"  WARNING: {len(fetch_failures)} venue×year fetches FAILED:")
+        for f in fetch_failures:
+            print(f"    - {f['venue']} {f['year']}: {f['error']}")
+    print()
 
     if not papers:
         print("  No papers found. Check config venues and date_range.")
@@ -671,11 +722,107 @@ def crawl_main(args: argparse.Namespace) -> int:
     return 0
 
 
+def enrich_main(args: argparse.Namespace) -> int:
+    """Enrich existing CSV with S2 + Crossref + arXiv. No DBLP fetch."""
+    rows, existing_human = read_existing_csv(args.input)
+    if not rows:
+        print(f"No papers found in {args.input}")
+        return 1
+
+    print(f"\n{'='*60}")
+    print(f"  Survey Crawler — ENRICH only")
+    print(f"  Input:  {args.input}")
+    print(f"  Papers: {len(rows)}")
+    if args.only_missing:
+        print(f"  Mode:   only-missing")
+    print(f"{'='*60}\n")
+
+    # Convert CSV rows to paper dicts
+    papers: list[dict[str, Any]] = []
+    for row in rows:
+        papers.append(dict(row))
+
+    # Filter to only-missing if requested
+    if args.only_missing:
+        before = len(papers)
+        papers = [
+            p for p in papers
+            if not p.get("abstract") or p.get("abstract") == "[abstract unavailable]"
+            or not p.get("citation_count") or p.get("citation_count") == "0"
+        ]
+        print(f"  --only-missing: {len(papers)} papers need enrichment (skipped {before - len(papers)} complete)\n")
+
+    # ── Phase B: S2 enrichment ──
+    print("── Phase B: S2 enrichment (via DOI) ──")
+    if not args.no_s2:
+        eligible = sum(1 for p in papers if p.get("doi"))
+        print(f"  Papers with DOI: {eligible}/{len(papers)}")
+        enriched, s2_abstracts = enrich_from_s2(papers, enabled=True)
+        print(f"  Result: {enriched} enriched, {s2_abstracts} abstracts from S2")
+    else:
+        print("  SKIPPED (--no-s2)")
+    print()
+
+    # ── Phase C: Abstract fallback ──
+    missing = sum(1 for p in papers if not p.get("abstract") or p.get("abstract") == "[abstract unavailable]")
+    have_abstract = len(papers) - missing
+
+    print("── Phase C: Abstract fallback ──")
+    print(f"  Abstracts status: {have_abstract} have, {missing} missing")
+    if missing > 0:
+        cr_count, arxiv_count, unavail = enrich_abstracts(
+            papers, crossref_enabled=True, arxiv_enabled=True,
+        )
+        print(f"  Result: Crossref={cr_count}, arXiv={arxiv_count}, unavailable={unavail}")
+    else:
+        print(f"  All abstracts already filled, nothing to do")
+    print()
+
+    # ── Write ──
+    # Merge enriched data back into all rows (not just the filtered subset)
+    if args.only_missing:
+        enriched_by_id = {p["paper_id"]: p for p in papers}
+        for row in rows:
+            pid = row.get("paper_id", "")
+            if pid in enriched_by_id:
+                ep = enriched_by_id[pid]
+                for col in CSV_COLUMNS:
+                    if col not in HUMAN_COLUMNS and ep.get(col):
+                        row[col] = str(ep[col])
+        papers_to_write = [dict(r) for r in rows]
+    else:
+        papers_to_write = papers
+
+    write_csv(papers_to_write, args.output, existing_human)
+    print(f"  Written: {len(papers_to_write)} papers to {args.output}")
+
+    # ── Summary ──
+    final_have = sum(
+        1 for p in papers_to_write
+        if p.get("abstract") and p["abstract"] not in ("", "[abstract unavailable]")
+    )
+    final_unavail = sum(
+        1 for p in papers_to_write
+        if p.get("abstract") == "[abstract unavailable]"
+    )
+    final_empty = sum(1 for p in papers_to_write if not p.get("abstract"))
+
+    print(f"\n{'='*60}")
+    print(f"  DONE — enriched {len(papers)} papers")
+    print(f"  Abstracts: {final_have} available, {final_unavail} unavailable, {final_empty} empty")
+    print(f"  Output: {args.output}")
+    print(f"{'='*60}\n")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     try:
         if args.command == "crawl":
             return crawl_main(args)
+        if args.command == "enrich":
+            return enrich_main(args)
         raise ValueError(f"Unknown command: {args.command}")
     except KeyboardInterrupt:
         print("\nInterrupted.", file=sys.stderr)

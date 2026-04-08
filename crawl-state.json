@@ -1,6 +1,6 @@
 {
   "topic_slug": "cpu-ai-acceleration",
-  "last_full_crawl": "2026-04-07T16:38:38+00:00Z",
+  "last_full_crawl": "2026-04-08T00:48:41+00:00Z",
   "last_incremental_crawl": null,
   "seen_paper_ids": [
     "doi:10.1109/ISCA59077.2024.00011",
@@ -211,13 +211,13 @@
       "venue": "ISCA",
       "year": 2024,
       "papers": 87,
-      "crawled": "2026-04-07"
+      "crawled": "2026-04-08"
     },
     {
       "venue": "MICRO",
       "year": 2024,
       "papers": 115,
-      "crawled": "2026-04-07"
+      "crawled": "2026-04-08"
     }
   ],
   "crawl_history": [
@@ -226,6 +226,14 @@
       "mode": "full",
       "effective_start": "2024",
       "effective_end": "2026-04-07",
+      "new_papers": 202,
+      "total_unique": 202
+    },
+    {
+      "date": "2026-04-08",
+      "mode": "full",
+      "effective_start": "2024",
+      "effective_end": "2026-04-08",
       "new_papers": 202,
       "total_unique": 202
     }

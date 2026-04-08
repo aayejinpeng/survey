@@ -1,0 +1,105 @@
+topic: "CPU AI acceleration"
+
+# 关键词 + 权重
+# 核心主题词权重最高，衍生主题次之，通用词最低
+keywords:
+  # --- 核心：CPU 侧 AI 加速架构 ---
+  - term: "tensor"
+    weight: 3
+  - term: "matrix extension"
+    weight: 10
+  - term: "vector extension"
+    weight: 5
+  - term: "AMX"
+    weight: 10
+  - term: "SME"
+    weight: 10
+  - term: "RISC-V"
+    weight: 3
+  - term: "IME"
+    weight: 10
+  - term: "VME"
+    weight: 10
+  - term: "MMA"
+    weight: 5
+  - term: "matmul"
+    weight: 10
+  - term: "GEMM"
+    weight: 5
+
+  # --- 架构层：扩展/加速 ---
+  - term: "CPU"
+    weight: 5
+  - term: "accelerator"
+    weight: 2
+  - term: "RVV"
+    weight: 10
+  - term: "vector extension"
+    weight: 2
+  - term: "custom instruction"
+    weight: 2
+  - term: "ISA extension"
+    weight: 2
+  - term: "systolic array"
+    weight: 2
+  - term: "scratchpad"
+    weight: 2
+  - term: "dataflow"
+    weight: 2
+
+  # --- 数据类型与量化 ---
+  - term: "quantization"
+    weight: 2
+  - term: "low-precision"
+    weight: 2
+  - term: "FP8"
+    weight: 2
+  - term: "BF16"
+    weight: 2
+  - term: "INT8"
+    weight: 2
+  - term: "mixed-precision"
+    weight: 2
+  - term: "MX"
+    weight: 2
+
+  # --- 工作负载 ---
+  - term: "LLM inference"
+    weight: 2
+  - term: "transformer"
+    weight: 1
+  - term: "AI inference"
+    weight: 2
+  - term: "edge AI"
+    weight: 1
+  - term: "on-device"
+    weight: 1
+
+  # --- 通用匹配（低权重，用于扩大召回） ---
+  - term: "AI"
+    weight: 1
+  - term: "accelerate"
+    weight: 1
+  - term: "matrix"
+    weight: 1
+  - term: "vector"
+    weight: 1
+  - term: "neural"
+    weight: 1
+  - term: "deep learning"
+    weight: 1
+  - term: "inference"
+    weight: 1
+
+# 可选 filter（不设则不过滤）
+# filter_venues:
+#   - ISCA
+#   - MICRO
+#   - HPCA
+#   - ASPLOS
+#   - DAC
+#   - DATE
+
+# filter_years:
+#   start: 2023
+#   end: 2026

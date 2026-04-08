@@ -49,7 +49,8 @@ venues:
     dblp_key: conf/pact
 
   - id: IPDPS
-    dblp_key: conf/ipdps
+    dblp_key: conf/ipps
+    dblp_abbr: ipdps
 
   - id: ICS
     dblp_key: conf/ics
@@ -101,9 +102,6 @@ venues:
 
   - id: ACM-TACO
     dblp_key: journals/taco
-
-  - id: JSA
-    dblp_key: journals/jsa
 
 date_range:
   start: 2022

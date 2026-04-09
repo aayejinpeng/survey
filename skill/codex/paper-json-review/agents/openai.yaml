@@ -1,0 +1,4 @@
+interface:
+  display_name: "Paper JSON Review"
+  short_description: "Review a paper dossier JSON against the source paper"
+  default_prompt: "Review this generated paper-analysis JSON against the source paper and output only the review JSON."

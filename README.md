@@ -39,6 +39,9 @@ survey/
 ├── pdfs/                        # PDF 下载目录
 ├── tools/
 │   └── s2_fetch.py              # S2 batch API 客户端
+├── skill/
+│   └── claude/
+│       └── analyze-paper-claude.md  # Claude Code skill: 论文分析
 ├── fetch_dblp.py                # Step 1: DBLP 抓取
 ├── enrich_papers.py             # Step 2: S2/Crossref/arXiv 富化
 ├── score_papers.py              # Step 3: 关键词打分
@@ -46,6 +49,7 @@ survey/
 ├── review_server.py             # Step 4: Web 审阅服务端
 ├── review.html                  # Step 4: Web 审阅前端
 ├── sync_zotero.py               # Step 5: Zotero PDF 同步
+├── export_dois.py               # Step 5 备选: 导出 DOI 链接手动下载
 ├── survey_crawler.py            # (旧版，保留)
 ├── timeline.md                  # 时间线
 ├── doc/                         # 详细文档
@@ -74,10 +78,15 @@ python3 review_server.py \
     --csv data/topics/cpu-ai/scored-score-gte11.csv \
     --topic configs/topic-cpu-ai.yaml
 
-# Step 5: 从 Zotero 同步 PDF
+# Step 5: 从 Zotero 同步 PDF（需要本地 Zotero 运行）
 python3 sync_zotero.py \
     --input data/topics/cpu-ai/scored-score-gte11.csv \
     --output-dir pdfs/cpu-ai/
+
+# Step 5 替代方案：导出 DOI 链接手动下载（Zotero 不可用时）
+python3 export_dois.py \
+    --input data/topics/cpu-ai/scored-score-gte11.csv \
+    --output pdfs/cpu-ai/doi-list.txt
 ```
 
 ## 数据流
@@ -143,8 +152,19 @@ keywords:
 - **键盘快捷键**：`1234`=keep, `qwer`=skip, `←→`=翻页, `Ctrl+S`=保存
 - **持久化**：标记写回 CSV 的 keep/notes 列
 
+## Skill 目录
+
+`skill/` 存放 Claude Code 专用的 skill 文件，用于辅助论文分析：
+
+| Skill | 文件 | 说明 |
+|-------|------|------|
+| Analyze Paper | `skill/claude/analyze-paper-claude.md` | 分析 corpus 中的论文 JSON，生成结构化 dossier（用于 proposal writing） |
+
+使用方式：通过 Claude Code CLI 的 skill 功能调用。该 skill 会读取论文的 `abstract` 和 `body_text`，输出包含研究目的、贡献、主题分类、技术细节和 proposal 论据的结构化 JSON。
+
 ## 进一步阅读
 
 - 时间线：[timeline.md](timeline.md)
 - 总体方案：[plan/README.md](plan/README.md)
+- 详细文档：[doc/README.md](doc/README.md)
 - 旧版文档：[doc/survey-crawler.md](doc/survey-crawler.md)

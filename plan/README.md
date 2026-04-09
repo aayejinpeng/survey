@@ -17,6 +17,8 @@ slice_csv.py                             # Step 3.5: 按阈值截取
 review_server.py + review.html           # Step 4: Web 审阅 + 标记
 sync_zotero.py → pdfs/                   # Step 5: Zotero PDF 同步
 build_graph.py                           # Step 6: 引用图（待做）
+
+skill/claude/analyze-paper-claude.md     # Claude Code skill: 论文分析
 ```
 
 ## 目录结构
@@ -49,6 +51,9 @@ workspace/survey/
         doi-list.txt     # keep 论文 DOI
 
   pdfs/                  ← PDF 下载目录
+  skill/
+    claude/
+      analyze-paper-claude.md  ← Claude Code 论文分析 skill
   plan/                  ← 设计文档
   doc/                   ← 用户手册
 ```
@@ -121,11 +126,25 @@ configs/venues.yaml
 | matched_keywords | 匹配到的关键词列表 |
 | relevance | High/Medium/Low/None 标签 |
 
+## Skill: 论文分析
+
+`skill/claude/analyze-paper-claude.md` 是 Claude Code 的 skill 文件，用于：
+
+- 读取 corpus 中的论文 JSON（`abstract` + `body_text`）
+- 输出结构化 JSON dossier，包含：
+  - 研究目的、意义、贡献点
+  - 主题簇分类（9 类）
+  - 工作映射（3 条工作线）
+  - 关键技术、实验结果
+  - Gap 识别和 proposal 论据
+
+该 skill 用于辅助 proposal writing，提供从论文到论证素材的半自动转化。
+
 ## 详细设计
 
 - [Step 1: fetch_dblp](step1-fetch-dblp.md) — DBLP 抓取
 - [Step 2: enrich_papers](step2-enrich-papers.md) — S2/Crossref/arXiv 富化
 - [Step 3: score_papers](step3-score-papers.md) — 关键词打分
-- [Step 4: filter](step4-filter.md) — 筛选
-- [Step 5: build_graph](step5-build-graph.md) — 引用图
-- [Step 6: update](step6-update.md) — 增量更新编排
+- [Step 4: review_server](step4-review.md) — Web 审阅
+- [Step 5: sync_zotero](step5-sync-zotero.md) — Zotero PDF 同步
+- [Step 6: build_graph](step6-build-graph.md) — 引用图

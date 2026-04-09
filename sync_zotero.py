@@ -26,6 +26,7 @@ import json
 import os
 import re
 import sys
+import shutil
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -33,7 +34,7 @@ from pathlib import Path
 from typing import Any
 
 
-ZOTERO_API_BASE = "http://localhost:{port}/api/users/0"
+ZOTERO_API_BASE = "http://{host}:{port}/api/users/0"
 _CHUNK = 64 * 1024
 
 
@@ -51,9 +52,9 @@ def _request(url: str, timeout: int = 15) -> dict[str, Any] | None:
         return None
 
 
-def check_zotero(port: int) -> bool:
+def check_zotero(host: str, port: int) -> bool:
     """Check if Zotero local API is running."""
-    url = f"http://localhost:{port}/connector/ping"
+    url = f"http://{host}:{port}/connector/ping"
     try:
         req = urllib.request.Request(url)
         with urllib.request.urlopen(req, timeout=3) as resp:
@@ -62,36 +63,47 @@ def check_zotero(port: int) -> bool:
         return False
 
 
-def find_item_by_doi(doi: str, port: int) -> dict[str, Any] | None:
+def find_item_by_doi(doi: str, host: str, port: int) -> dict[str, Any] | None:
     """Search Zotero library for an item by DOI."""
-    url = f"{ZOTERO_API_BASE.format(port=port)}/items?q={urllib.parse.quote(doi, safe='')}&limit=10"
+    base = ZOTERO_API_BASE.format(host=host, port=port)
+    doi_clean = doi.strip().lower()
+
+    # Method 1: Search by DOI field directly
+    url = f"{base}/items?q={urllib.parse.quote(doi_clean, safe='')}&limit=25"
     data = _request(url)
-    if not data:
-        return None
+    if data:
+        for item in data:
+            d = item.get("data", {})
+            if d.get("DOI", "").strip().lower() == doi_clean:
+                return item
 
-    for item in data:
-        d = item.get("data", {})
-        item_doi = d.get("DOI", "").strip().lower()
-        if item_doi == doi.strip().lower():
-            return item
-
-    # Fallback: try exact DOI search
-    url2 = f"{ZOTERO_API_BASE.format(port=port)}/items?q={urllib.parse.quote(doi, safe='')}&limit=25"
+    # Method 2: Iterate recent items and match DOI (covers items not found via search)
+    url2 = f"{base}/items?limit=100&sort=dateAdded&direction=desc&start=0"
     data2 = _request(url2)
     if data2:
         for item in data2:
             d = item.get("data", {})
-            if doi.strip().lower() in d.get("DOI", "").lower():
+            if d.get("DOI", "").strip().lower() == doi_clean:
                 return item
-            if doi.strip().lower() in d.get("url", "").lower():
+            if doi_clean in d.get("url", "").lower():
+                return item
+
+    # Method 3: Try wider search with partial DOI prefix
+    doi_prefix = doi_clean.split("/")[0] if "/" in doi_clean else doi_clean[:8]
+    url3 = f"{base}/items?q={urllib.parse.quote(doi_prefix, safe='')}&limit=50"
+    data3 = _request(url3)
+    if data3:
+        for item in data3:
+            d = item.get("data", {})
+            if d.get("DOI", "").strip().lower() == doi_clean:
                 return item
 
     return None
 
 
-def get_pdf_attachment(item_key: str, port: int) -> dict[str, Any] | None:
+def get_pdf_attachment(item_key: str, host: str, port: int) -> dict[str, Any] | None:
     """Find PDF attachment for a Zotero item."""
-    url = f"{ZOTERO_API_BASE.format(port=port)}/items/{item_key}/children"
+    url = f"{ZOTERO_API_BASE.format(host=host, port=port)}/items/{item_key}/children"
     children = _request(url)
     if not children:
         return None
@@ -109,23 +121,40 @@ def get_pdf_attachment(item_key: str, port: int) -> dict[str, Any] | None:
     return None
 
 
-def download_pdf(attachment_key: str, dest: str, port: int) -> bool:
-    """Download a PDF attachment from Zotero."""
-    url = f"{ZOTERO_API_BASE.format(port=port)}/items/{attachment_key}/file"
+def download_pdf(attachment_key: str, dest: str, host: str, port: int) -> bool:
+    """Download a PDF attachment from Zotero.
+
+    Handles linked files that return a 302 redirect to file:// URLs
+    by copying directly from the local filesystem.
+    """
+    url = f"{ZOTERO_API_BASE.format(host=host, port=port)}/items/{attachment_key}/file"
+    Path(dest).parent.mkdir(parents=True, exist_ok=True)
     try:
         req = urllib.request.Request(url, headers={
             "User-Agent": "sync-zotero/1.0",
             "Zotero-API-Version": "3",
         })
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            Path(dest).parent.mkdir(parents=True, exist_ok=True)
-            with open(dest, "wb") as f:
-                while True:
-                    chunk = resp.read(_CHUNK)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-        return True
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                with open(dest, "wb") as f:
+                    while True:
+                        chunk = resp.read(_CHUNK)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+            return True
+        except urllib.error.HTTPError as exc:
+            # Handle 302 redirect to file:// — copy from local path
+            if exc.code == 302 and exc.headers.get("Location", "").startswith("file://"):
+                local_path = urllib.parse.unquote(
+                    exc.headers["Location"][7:]  # strip "file://"
+                )
+                if os.path.isfile(local_path):
+                    shutil.copy2(local_path, dest)
+                    return True
+                print(f"    Local file not found: {local_path}", file=sys.stderr)
+                return False
+            raise
     except Exception as exc:
         print(f"    Download error: {exc}", file=sys.stderr)
         return False
@@ -141,17 +170,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Sync PDFs from Zotero by DOI.")
     parser.add_argument("--input", required=True, help="Scored CSV file")
     parser.add_argument("--output-dir", required=True, help="Directory to save PDFs")
+    parser.add_argument("--host", default="localhost", help="Zotero host (use host.docker.internal from Docker)")
     parser.add_argument("--port", type=int, default=23119, help="Zotero local API port")
     parser.add_argument("--marks", default="keep,core,related", help="Which marks to sync")
     parser.add_argument("--dry-run", action="store_true", help="Only check, don't download")
     args = parser.parse_args()
 
-    if not check_zotero(args.port):
-        print(f"Error: Zotero not running on port {args.port}", file=sys.stderr)
+    if not check_zotero(args.host, args.port):
+        print(f"Error: Zotero not running on {args.host}:{args.port}", file=sys.stderr)
         print("  Make sure Zotero desktop is open and local API is enabled.", file=sys.stderr)
         return 1
 
-    print(f"Zotero connected on port {args.port}")
+    print(f"Zotero connected on {args.host}:{args.port}")
 
     with open(args.input, encoding="utf-8") as f:
         papers = list(csv.DictReader(f))
@@ -189,7 +219,7 @@ def main() -> int:
             continue
 
         # Find item in Zotero
-        item = find_item_by_doi(doi, args.port)
+        item = find_item_by_doi(doi, args.host, args.port)
         if not item:
             print(f"    NOT FOUND in Zotero (DOI: {doi})")
             not_found += 1
@@ -198,7 +228,7 @@ def main() -> int:
         item_key = item["key"]
 
         # Find PDF attachment
-        attachment = get_pdf_attachment(item_key, args.port)
+        attachment = get_pdf_attachment(item_key, args.host, args.port)
         if not attachment:
             print(f"    NO PDF attachment in Zotero")
             no_pdf += 1
@@ -212,7 +242,7 @@ def main() -> int:
         # Download
         att_key = attachment["key"]
         print(f"    Downloading...", end=" ", flush=True)
-        if download_pdf(att_key, fpath, args.port):
+        if download_pdf(att_key, fpath, args.host, args.port):
             print(f"OK -> {fname}")
             downloaded += 1
         else:

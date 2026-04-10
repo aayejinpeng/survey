@@ -1,0 +1,56 @@
+{
+  "title": "A Heterogeneous CNN Compilation Framework for RISC-V CPU and NPU Integration Based on ONNX-MLIR",
+  "authors": "Shan Cao, Meiling Yang, Yintao Liu, Yu Li, Beining Zhao, Xinyu Chen, Zhiyuan Jiang",
+  "year": 2025,
+  "venue": "IEEE-TCAD",
+  "doi": "10.1109/TCAD.2025.3564561",
+  "url": "",
+  "theme_primary": "7. Compiler / tensor IR / operator generation",
+  "theme_secondary": "",
+  "workstream_fit": "2",
+  "research_purpose": "本文提出一个基于 ONNX-MLIR 的 RISC-V CPU/NPU 异构协同计算编译框架，解决 CNN 模型从算法到异构硬件架构的映射与编译问题。",
+  "research_significance": "论文指出当前学术界对 CPU/NPU 协同计算关注有限，支持两者联合计算的架构和工具链较少。该工作面向 RISC-V 平台实现了较完整的异构编译框架，并在代码密度、内存使用和部署性能方面展示出明显改进。",
+  "key_technique": "本文核心方法是基于 ONNX-MLIR 多级中间表示构建异构编译框架。在 ONNX dialect 层进行任务调度和算子打包，将连续 CNN 算子封装为 NPU 自定义算子；在 MLIR dialect 层进行数据协调和权重量化；在 LLVM dialect 层进行统一的异构内存管理与后端集成。",
+  "key_results": "ResNet50 部署实现 24.4 MB 内存占用和 56.7 ms 延迟。DE 内存管理在 ResNet50 上实现 5.58 倍内存改善，代码密度最高降低 7.06 倍。YOLOv3-Tiny 在 all_CPU 模式下观测到 277 billion cycles，说明基础 RV32IM 在该类深度学习负载上效率受限。",
+  "is_close_baseline_to_cute": false,
+  "contributions": [
+    {
+      "point": "提出基于 ONNX-MLIR 的算子打包技术，通过自定义算子将多个 CNN 操作封装为复合操作，以减少异构操作切换开销并提升 NPU 计算效率。",
+      "evidence": "By extending the ONNX-MLIR framework with custom operators, we introduce an operator packing technique that maximizes the computational efﬁciency of NPUs, while minimizing overhead during transitions between heterogeneous operations."
+    },
+    {
+      "point": "设计了三种模式（ALL_CPU、USER_DEFINE、DEFAULT）的任务调度器，支持正确性验证、性能优化和细粒度异构分析。",
+      "evidence": "A task scheduler with three operational modes is developed, allowing users to customize the task dis- tribution according to speciﬁc requirements, including correctness veriﬁcation, performance optimization, or detailed analysis of computational workﬂows across heterogeneous platforms"
+    },
+    {
+      "point": "提出了针对 CPU/NPU 异构架构的优化内存管理方案，包含双端分配（DE）自检查机制和用后释放（RU）机制。",
+      "evidence": "The memory management system incorporates two tech- niques: a dual-end (DE) allocation strategy with a self-check function, and a release-after-use (RU) mech- anism that minimizes memory footprint."
+    },
+    {
+      "point": "实现了算法适配和数据协调机制，解决 NPU 对特征图尺寸和存储顺序的硬件约束问题。",
+      "evidence": "One effective strategy to address this challenge is to use the padding [32] and reshaping techniques to conform non-power- of-2 FMs to NPU-compatible sizes."
+    }
+  ],
+  "gap_identified": [
+    {
+      "gap": "当前框架仅支持 CNN，未来工作才计划扩展到 Transformer 等更先进模型。",
+      "evidence": "Moving forward, we could explore the integration of more advanced machine learning models, such as transformers, and their adaptation to more heterogeneous architectures.",
+      "relevance_to_cute": "可作为 CUTE 面向 Transformer/LLM 工作负载的差异化切入点。"
+    },
+    {
+      "gap": "RISC-V RV32IM 缺乏适合深度学习负载的专用硬件扩展，纯 CPU 执行效率受限。",
+      "evidence": "the RV32IM ISA lacks the specialized hardware extensions needed for efﬁcient deep learning workloads.",
+      "relevance_to_cute": "可作为 CPU 矩阵扩展或 RVV/AI 向量增强必要性的旁证。"
+    },
+    {
+      "gap": "离散内存分配需要 CPU 与 NPU 之间显式数据传输，管理复杂度较高，说明统一内存/更紧耦合数据通路仍有改进空间。",
+      "evidence": "While this approach can be more complex to manage because it requires explicit data transfers between the memory of CPU and the memory of NPU, it can offer more control. In our work, we chose to use discrete memory allocation.",
+      "relevance_to_cute": "与更高效的内存体系或统一数据通路设计有关，但只是间接启发，不是直接证据。"
+    }
+  ],
+  "proposal_evidence": {
+    "for_feasibility": "论文给出了关键实证数据：YOLOv3 在 O_P=0 时延迟可达 13 234 ms，说明基础 RV32IM 在该类 CNN 负载上效率有限；DE 内存管理实现 5.58× memory usage improvement；operator packing 与任务卸载带来最高 7.06× code density reduction，说明编译优化与异构硬件协同具有现实收益。",
+    "for_gap": "论文显示基础 RV32IM 缺乏适合深度学习的专用扩展，且未来工作计划扩展到 transformers。这可作为 CUTE 在 CPU 扩展、向量增强以及面向 Transformer 负载设计上的旁证，但不应表述为论文对 CUTE 的直接论证。",
+    "for_state_of_art": "该论文发表于 IEEE TCAD 2025，关注较少见的 RISC-V CPU/NPU 协同计算编译框架。其价值在于将 CPU 纳入异构计算流程，而不是仅作为主机控制端，并基于 ONNX-MLIR 提供较系统的编译实现。"
+  }
+}

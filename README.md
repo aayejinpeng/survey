@@ -8,8 +8,6 @@
 
 📖 **新手必读**：[5分钟上手指南 (QUICKSTART.md)](QUICKSTART.md) - 配置会议、设置关键词、一键运行
 
-🎯 **项目简介**：[项目简介与宣传文案 (PITCH.md)](PITCH.md) - 核心功能、AI 机制、输出格式
-
 ## Pipeline 状态
 
 | Step | 脚本 | 状态 | 输出 |

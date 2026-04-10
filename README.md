@@ -12,7 +12,8 @@
 | 3.5 | `slice_csv.py` | ✅ | 按 score 阈值截取 |
 | 4 | `review_server.py` + `review.html` | ✅ | Web 审阅，标记写回 CSV |
 | 5 | `sync_zotero.py` | ✅ | `pdfs/` |
-| 6 | `build_graph.py` | ⬜ | 引用图可视化 |
+| 6 | `corpus_reviewer.py` | ✅ | Corpus 对照审阅 + 人工修订 |
+| 7 | `build_graph.py` | ⬜ | 引用图可视化 |
 
 ## 当前数据（2026-04-08）
 
@@ -35,13 +36,23 @@ survey/
 │       ├── scored.csv           # 全量 14,600 篇
 │       ├── scored-score-gte11.csv  # 196 篇
 │       ├── top10/50/100.csv
-│       └── doi-list.txt         # keep 论文的 DOI 列表
+│       ├── doi-list.txt         # keep 论文的 DOI 列表
+│       └── corpus/              # LLM 分析语料
+│           ├── draft/           # GLM 原始提取
+│           ├── llm/
+│           │   ├── glm5.1/      # GLM 提取结果 *.json
+│           │   └── gpt5.4/      # GPT 审查 + 修正
+│           └── human_review/    # 人工编辑保存
 ├── pdfs/                        # PDF 下载目录
+│   └── cpu-ai/                  # CPU AI 主题的 PDF 文件
+├── corpus_reviewer.py            # Step 6: Corpus 对照审阅 Web 服务
 ├── tools/
 │   └── s2_fetch.py              # S2 batch API 客户端
 ├── skill/
-│   └── claude/
-│       └── analyze-paper-claude.md  # Claude Code skill: 论文分析
+│   ├── claude/
+│   │   └── analyze-paper-claude.md  # Claude Code skill: 论文分析
+│   └── codex/
+│       └── paper-json-review/       # Codex skill: LLM 语料审查
 ├── fetch_dblp.py                # Step 1: DBLP 抓取
 ├── enrich_papers.py             # Step 2: S2/Crossref/arXiv 富化
 ├── score_papers.py              # Step 3: 关键词打分
@@ -87,6 +98,11 @@ python3 sync_zotero.py \
 python3 export_dois.py \
     --input data/topics/cpu-ai/scored-score-gte11.csv \
     --output pdfs/cpu-ai/doi-list.txt
+
+# Step 6: 启动 Corpus 对照审阅（浏览器打开 http://localhost:5000）
+python3 corpus_reviewer.py --topic cpu-ai
+# 或指定其他 topic / port
+python3 corpus_reviewer.py --topic another-topic --port 8080
 ```
 
 ## 数据流
@@ -107,6 +123,11 @@ slice_csv.py → scored-score-gte{N}.csv
 review_server.py → Web 审阅标记 (keep/core/skip)
       ↓
 sync_zotero.py → pdfs/  (从 Zotero 本地 API 拉 PDF)
+      ↓
+server.py → Corpus 对照审阅 + 人工修订 (http://localhost:5000)
+```
+
+`--topic` 参数对应 `data/topics/` 下的子目录名，同时关联 `pdfs/{topic}/` 下的 PDF 文件。
 ```
 
 ## 配置说明
@@ -152,15 +173,102 @@ keywords:
 - **键盘快捷键**：`1234`=keep, `qwer`=skip, `←→`=翻页, `Ctrl+S`=保存
 - **持久化**：标记写回 CSV 的 keep/notes 列
 
+## Corpus 对照审阅工具
+
+`corpus_reviewer.py` 提供左右分栏的 Web 界面，用于对照查看 LLM 分析语料和原始 PDF，并支持人工修订。
+
+### 启动
+
+```bash
+pip install flask
+python3 corpus_reviewer.py --topic <topic-name>
+```
+
+`--topic` 指定 `data/topics/` 下的主题目录名（默认 `cpu-ai`），服务器会读取对应的 `corpus/llm/` 语料和 `pdfs/<topic>/` 下的 PDF。`--port` 可指定端口（默认 5000）。
+
+### 布局
+
+左半边为结构化 JSON 展示 / 编辑区，右半边为 PDF 阅读器。
+
+### 四个视图
+
+按 `↑` `↓` 或 `1` `2` `3` `4` 切换：
+
+| 视图 | 数据源 | 说明 |
+|------|--------|------|
+| **GPT Review** | `corpus/llm/gpt5.4/*.review.json` | GPT 对 GLM 提取结果的审查（verdict、checks、field reviews、issues） |
+| **GLM Extraction** | `corpus/llm/glm5.1/*.json` | GLM 对论文的原始提取（paper info、abstract、metadata） |
+| **GPT Revised** | `corpus/llm/gpt5.4/*.revised.json` | GPT 修正后的结构化分析（research、contributions、gaps） |
+| **Human Edit** | 基于 GPT Revised，保存到 `corpus/human_review/` | 可编辑表单，直接在 GPT 结果上修改并保存 |
+
+### 快捷键
+
+| 按键 | 功能 |
+|------|------|
+| `←` `→` | 切换上/下一篇论文 |
+| `↑` `↓` | 切换视图（循环） |
+| `1` `2` `3` `4` | 直接跳到对应视图 |
+| `Ctrl+S` | 在 Human Edit 视图中保存 |
+
+编辑框内输入时方向键和数字键不触发导航。顶栏显示 saved/unsaved 状态。
+
 ## Skill 目录
 
-`skill/` 存放 Claude Code 专用的 skill 文件，用于辅助论文分析：
+`skill/` 存放 LLM 辅助工具的 skill 定义，用于论文分析和语料审查。
 
-| Skill | 文件 | 说明 |
-|-------|------|------|
-| Analyze Paper | `skill/claude/analyze-paper-claude.md` | 分析 corpus 中的论文 JSON，生成结构化 dossier（用于 proposal writing） |
+### Claude Code Skill: Analyze Paper
 
-使用方式：通过 Claude Code CLI 的 skill 功能调用。该 skill 会读取论文的 `abstract` 和 `body_text`，输出包含研究目的、贡献、主题分类、技术细节和 proposal 论据的结构化 JSON。
+| 文件 | 说明 |
+|------|------|
+| `skill/claude/analyze-paper-claude.md` | 论文第一轮分析 |
+
+通过 Claude Code CLI 调用，读取论文的 `abstract` 和 `body_text`，生成结构化 dossier JSON（研究目的、贡献、主题分类、技术细节和 proposal 论据），用于 proposal writing。
+
+### Codex Skill: Paper JSON Review
+
+| 文件 | 说明 |
+|------|------|
+| `skill/codex/paper-json-review/SKILL.md` | Skill 入口定义 |
+| `skill/codex/paper-json-review/references/analysis-contract.md` | Dossier 输出格式约定 |
+| `skill/codex/paper-json-review/references/review-schema.md` | Review 输出格式约定 |
+| `skill/codex/paper-json-review/references/review-output.schema.json` | JSON Schema |
+| `skill/codex/paper-json-review/scripts/preflight_review.py` | 确定性预检脚本 |
+| `skill/codex/paper-json-review/scripts/run_codex_review.sh` | 一键审查入口 |
+
+**功能**：对 LLM 生成的论文 dossier 进行第二轮审查，验证结构合规性、引文准确性、语义可信度，输出 review JSON 和 corrected revised JSON。
+
+**使用流程**：
+
+1. 安装 skill 到 `$CODEX_HOME/skills/`：
+   ```bash
+   bash skill/codex/paper-json-review/scripts/install_workspace_codex_home.sh
+   ```
+
+2. 通过 Codex CLI 调用：
+   ```bash
+   bash skill/codex/paper-json-review/scripts/run_codex_review.sh \
+       <path-to-dossier-json>
+   ```
+
+3. 或单独运行预检脚本：
+   ```bash
+   python skill/codex/paper-json-review/scripts/preflight_review.py \
+       --analysis-json <dossier.json> \
+       --paper-json <paper.json> \
+       --pretty
+   ```
+
+**输出**：包含 `review`（结构化审查报告）和 `revised_analysis`（修正后的 dossier）的 JSON，保存到 `corpus/llm/gpt5.4/` 下。
+
+## Corpus Reviewer API
+
+| 路由 | 方法 | 说明 |
+|------|------|------|
+| `/api/papers` | GET | 论文列表（含各模型的可用文件） |
+| `/api/json/<model>/<file>` | GET | 获取 LLM 生成的 JSON |
+| `/api/human/<basename>` | GET | 获取人工编辑的 JSON（无则返回 null） |
+| `/api/human/<basename>` | PUT | 保存人工编辑的 JSON |
+| `/pdf/<filename>` | GET | 获取 PDF 文件 |
 
 ## 进一步阅读
 

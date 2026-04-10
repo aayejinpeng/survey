@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """Web server for reviewing LLM-generated corpus alongside PDF papers."""
 
+import argparse
 import json
 import os
 from flask import Flask, jsonify, render_template_string, request, send_file
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-CORPUS_DIR = os.path.join(BASE, "data", "topics", "cpu-ai", "corpus")
-PDF_DIR = os.path.join(BASE, "pdfs", "cpu-ai")
+
+parser = argparse.ArgumentParser(description="Survey Corpus Reviewer")
+parser.add_argument("--topic", default="cpu-ai", help="Topic directory name under data/topics/ (default: cpu-ai)")
+parser.add_argument("--port", type=int, default=5000, help="Port to listen on (default: 5000)")
+args = parser.parse_args()
+
+TOPIC = args.topic
+CORPUS_DIR = os.path.join(BASE, "data", "topics", TOPIC, "corpus")
+PDF_DIR = os.path.join(BASE, "pdfs", TOPIC)
 LLM_DIR = os.path.join(CORPUS_DIR, "llm")
 DRAFT_DIR = os.path.join(CORPUS_DIR, "draft")
 HUMAN_DIR = os.path.join(CORPUS_DIR, "human_review")
@@ -681,9 +689,10 @@ loadPapers();
 """
 
 if __name__ == "__main__":
+    print(f"  Topic:   {TOPIC}")
     print(f"  PDFs:    {PDF_DIR}")
     print(f"  Corpus:  {CORPUS_DIR}")
     print(f"  LLM:     {LLM_DIR}")
     print(f"  Human:   {HUMAN_DIR}")
-    print(f"  URL:     http://localhost:5000")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    print(f"  URL:     http://localhost:{args.port}")
+    app.run(host="0.0.0.0", port=args.port, debug=True)

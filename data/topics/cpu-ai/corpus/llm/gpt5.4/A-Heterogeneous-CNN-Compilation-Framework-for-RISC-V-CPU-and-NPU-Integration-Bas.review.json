@@ -1,18 +1,18 @@
 {
   "checks": {
     "evidence_quotes": "mixed",
-    "metadata": "mixed",
+    "metadata": "fail",
     "numeric_claims": "mixed",
     "schema": "pass",
     "semantic_grounding": "mixed",
-    "taxonomy_mapping": "mixed"
+    "taxonomy_mapping": "pass"
   },
   "confidence": "high",
   "field_reviews": [
     {
       "field": "research_purpose",
       "paper_evidence": "In this article, we propose a RISC-V CPU/NPU co-computing-based compilation framework to solve the problem of mapping from algorithms to heterogeneous architectures.",
-      "reason": "对研究目标的概括基本准确，且与摘要中的表述一致。中文表述加入了“弥合 CPU 通用性和 NPU 计算效率之间的鸿沟”，属于对摘要“bridge the computational gap”的稳妥转述。",
+      "reason": "该字段与摘要和引言一致，准确概括了论文目标，没有明显外推。",
       "severity": "minor",
       "status": "supported",
       "suggested_fix": "保持不变"
@@ -20,153 +20,160 @@
     {
       "field": "research_significance",
       "paper_evidence": "Despite this potential, there is currently insufficient academic focus on CPU/NPU co-computing, and few architectures or toolchains have been developed to support such integration.",
-      "reason": "前半部分关于学术关注不足、缺少支持 CPU/NPU 协同的架构与工具链有文本依据；但“填补了 RISC-V 异构编译框架的空白”表述过强，论文只说“few architectures or toolchains”，未证明其为首个或填补空白。",
-      "severity": "major",
+      "reason": "总体方向正确，但“填补空白”“通用的、可配置的CNN异构部署方案”等表述略强于原文。论文强调学术关注不足和支持多种CNN，但未直接宣称“填补空白”。",
+      "severity": "minor",
       "status": "partially_supported",
-      "suggested_fix": "改为“面向 RISC-V CPU/NPU 协同计算提供了一个较完整的异构编译框架实现，并在代码密度与内存使用方面展示出显著改进”"
+      "suggested_fix": "改为更保守表述：该工作面向RISC-V CPU/NPU协同编译这一研究较少的方向，基于ONNX-MLIR实现多种CNN的异构映射与优化，并在代码密度和内存使用上取得提升。"
     },
     {
       "field": "contributions",
-      "paper_evidence": "1) By extending the ONNX-MLIR framework with custom operators, we introduce an operator packing technique... 2) A task scheduler with three operational modes is developed... 3) The discrete memory allocation strategy is optimized... the memory management system incorporates two techniques...",
-      "reason": "四项贡献总体方向正确。问题在于两处 evidence 不是逐字原文：任务调度证据跨页断开，padding 证据漏掉了文中的引用标记与连字符形式。",
-      "severity": "major",
+      "paper_evidence": "1) By extending the ONNX-MLIR framework with custom operators, we introduce an operator packing technique that maximizes the computational efficiency of NPUs, while minimizing overhead during transitions between heterogeneous operations. 2) A task scheduler with three operational modes is developed, allowing users to customize the task distribution according to specific requirements, including correctness verification, performance optimization, or detailed analysis of computational workflows across heterogeneous platforms, which typically emphasizes the versatility of the framework. 3) The discrete memory allocation strategy is optimized to accommodate the CPU/NPU heterogeneous architecture, ensuring seamless data access during cross-platform computations. To further enhance memory efficiency, the memory management system incorporates two techniques: a dual-end (DE) allocation strategy with a self-check function, and a release-after-use (RU) mechanism that minimizes memory footprint.",
+      "reason": "贡献点总体与论文一致。第二条 evidence 不是完全逐字匹配，但与正文贡献列表高度一致，可保守修正为论文中的精确引文。",
+      "severity": "minor",
       "status": "partially_supported",
-      "suggested_fix": "保留四项贡献，但将第 2、4 项 evidence 改为论文中的逐字英文原句"
+      "suggested_fix": "保留四个贡献点的结构，但将第二条 evidence 改为论文贡献列表中的原句；第四条贡献可继续保留，但措辞应避免夸大“弥合差距”的结论强度。"
     },
     {
       "field": "theme_primary",
-      "paper_evidence": "The ONNX-MLIR toolchain [10] is a modular, open-source framework... However, it currently lacks support for generating back-end instructions for heterogeneous architectures.",
-      "reason": "论文核心是基于 ONNX-MLIR 的异构 CNN 编译框架，主主题归为编译器/张量 IR/算子生成是合理的。",
+      "paper_evidence": "The ONNX-MLIR toolchain [10] is a modular, open-source framework that supports adaptive scaling, converting ONNX input into multilevel intermediate representations (MLIRs). However, it currently lacks support for generating back-end instructions for heterogeneous architectures.",
+      "reason": "论文核心是基于ONNX-MLIR的异构编译框架，主主题归类为编译器/IR/算子生成是合理的。",
       "severity": "minor",
       "status": "supported",
       "suggested_fix": "保持不变"
     },
     {
       "field": "theme_secondary",
-      "paper_evidence": "信息不足，无法从文本中提取",
-      "reason": "原值“1. CPU-side AI acceleration”不符合允许的枚举字符串，且论文并不以 CPU 内核内 AI 加速器为次主题。若保留次主题，更接近 RISC-V/异构编译而非 CPU-side accelerator。",
-      "severity": "major",
-      "status": "format_error",
-      "suggested_fix": "将 theme_secondary 设为 null"
+      "paper_evidence": "RISC-V reserves signiﬁcant instruction code space for user-\ndeﬁned extensions [6], [7], making it ideal for domain-speciﬁc\nenhancements.",
+      "reason": "论文确实涉及RISC-V自定义指令空间和NPU指令映射，因此次主题归入RISC-V custom ISA合理。",
+      "severity": "minor",
+      "status": "supported",
+      "suggested_fix": "保持不变"
     },
     {
       "field": "workstream_fit",
-      "paper_evidence": "To address the aforementioned issues, this article presents a versatile compilation framework built upon the RISC-V CPU and NPU co-computing architecture.",
-      "reason": "论文最匹配编译器/算子生成与 RISC-V 相关工作流，归入 workstream 2 合理。",
+      "paper_evidence": "Different hardware architectures often have their own unique instruction sets and capabilities. To integrate a heterogeneous compilation platform that supports multiple architectures, it is essential to ensure that the generated code is compatible across all targeted devices.",
+      "reason": "论文更偏向RISC-V ISA与编译器协同，而非CPU核内矩阵扩展或系统级HBM，因此映射到工作流2合理。",
       "severity": "minor",
       "status": "supported",
       "suggested_fix": "保持不变"
     },
     {
       "field": "is_close_baseline_to_cute",
-      "paper_evidence": "The ONNX-MLIR toolchain [10] is a modular, open-source framework... However, it currently lacks support for generating back-end instructions for heterogeneous architectures.",
-      "reason": "该论文是异构编译框架，不是 CPU 内矩阵扩展、核内加速器或直接的 CUTE 基线，因此设为 false 正确。",
+      "paper_evidence": "However, these architectures often support only a limited number of CNNs and uses the CPU solely as a host, without incorporating it into the computation process.",
+      "reason": "该论文不是CPU矩阵扩展、核内AI加速器或直接的CUTE基线，设置为 false 合理。",
       "severity": "minor",
       "status": "supported",
       "suggested_fix": "保持不变"
     },
     {
       "field": "key_technique",
-      "paper_evidence": "within ONNX-MLIR, we developed three phases to support operator packing, algorithm adaption, and data coordination. To integrate heterogeneous compilation platforms, we introduce four additional functions to handle task scheduling, weight quantization, weight rearrangement, and memory management.",
-      "reason": "核心技术总结基本准确，且“512-bit instruction split into 18 32-bit RISC-V custom instructions”可由正文关于指令拆分得到支持。整体无明显夸大。",
+      "paper_evidence": "To ensure compatibility within a heterogeneous archi-\ntecture, each 512-bit NPU instruction must be split into\n18 individual 32-bit instructions in the RISC-V format.",
+      "reason": "技术路线总体准确，包含自定义算子、算法适配、数据协调、量化和权重重排等要点。少量实现细节属于综合表述，但未发现核心性失真。",
       "severity": "minor",
       "status": "supported",
-      "suggested_fix": "保持不变"
+      "suggested_fix": "保持不变，必要时将“无缝集成”等评价性措辞弱化为“实现映射与兼容”"
     },
     {
       "field": "key_results",
-      "paper_evidence": "our architecture excels in delivering lower memory footprints (e.g., 24.4 MB for ResNet50 compared to 97.7 MB in [14]) and reduced latency (e.g., 56.7 ms for ResNet50 compared to 1614.8 ms in [14])... It achieves up to a 7.06× reduction in code density and up to a 5.58× improvement in memory usage... observed an extraordinarily high cycle count of 277 billion cycles.",
-      "reason": "24.4 MB、56.7 ms、7.06×、5.58×与“277 billion cycles”均有依据，但原文写成“2770 亿周期”数值放大了 10 倍；另外该结果对应 YOLOv3-Tiny 的 all_CPU 周期，不宜写成泛化结论。",
+      "paper_evidence": "It achieves up to a 7.06× reduction in code density and up to a 5.58× improvement in memory usage. For example, ResNet50 requires only 1.97 MB, achieving a 5.58× reduction compared to SS. In comparison to other architectures listed in the table, such as the extended SODA synthesizer in [14], our architecture excels in delivering lower memory footprints (e.g., 24.4 MB for ResNet50 compared to 97.7 MB in [14]) and reduced latency (e.g., 56.7 ms for ResNet50 compared to 1614.8 ms in [14]) even converted to 32-bit precision. All_CPU Mode: In this mode, we run YOLOv3-Tiny with an input size of 224 × 224 × 3 (in 8-bit), and observed an extraordinarily high cycle count of 277 billion cycles.",
+      "reason": "主要结果基本有据，但原文把 ResNet50 与 [14] 的对比内存写为 24.4 MB 对 97.7 MB，而分析稿写成 11.00 MB 对 97.7 MB，混淆了不同比较口径；“2770亿周期”虽语义接近 277 billion cycles，但不宜作为纸面精确摘录。",
       "severity": "major",
-      "status": "incorrect",
-      "suggested_fix": "将“2770 亿周期”改为“277 billion cycles（约 2770 亿? 不，约 2770?）”会产生歧义；中文中直接写“277 billion cycles（约 2770 亿周期）”不安全。建议直接写英文原值“277 billion cycles”，并明确对象为 YOLOv3-Tiny all_CPU 模式"
+      "status": "partially_supported",
+      "suggested_fix": "将结果改写为：代码密度最高降低 7.06×、DE 相比 SS 的内存使用最高改善 5.58×；ResNet50 在 DE 下为 1.97 MB，在与 [14] 的对比中延迟为 56.7 ms 对 1614.8 ms、内存为 24.4 MB 对 97.7 MB；ALL_CPU 模式下 YOLOv3-Tiny 观测到 277 billion cycles。"
     },
     {
       "field": "gap_identified",
-      "paper_evidence": "Moving forward, we could explore the integration of more advanced machine learning models, such as transformers... the RV32IM ISA lacks the specialized hardware extensions needed for efficient deep learning workloads. While this approach can be more complex to manage because it requires explicit data transfers between the memory of CPU and the memory of NPU, it can offer more control.",
-      "reason": "前两项 gap 有直接依据。第 3 项 evidence 使用了省略号拼接，不是逐字引文；且“限制效率”是合理推断，但论文同时说明这种方案“can offer more control”，应避免只保留负面一面。",
+      "paper_evidence": "Moving forward, we could explore the integration of more\nadvanced machine learning models, such as transformers, and\ntheir adaptation to more heterogeneous architectures. In our work, we chose to use discrete memory allocation. While this approach can be more complex to manage because it requires explicit data transfers between the memory of CPU and the memory of NPU, it can offer more control. One reason for this high cycle count may be that the RV32IM ISA lacks the specialized hardware extensions needed for efﬁcient deep learning workloads. Based on the above analysis, there are two key approaches for our architecture to enhance the CPU inference speed. First, we can customize the instruction set for deep learning tasks; second, a larger cache is needed.",
+      "reason": "第1和第3个 gap 有文本支持。第2个 gap 的原 evidence 不是逐字引文，而是把两段话拼接并加了省略，需改成论文中的直接引文。",
       "severity": "major",
       "status": "partially_supported",
-      "suggested_fix": "将第 3 项 evidence 改为论文逐字句子，并把 gap 改写为“离散内存分配需要显式数据传输，管理复杂度较高，提示统一内存仍有改进空间”"
+      "suggested_fix": "保留三个 gap 的方向，但将第2条 evidence 替换为论文中的精确句子；同时把“关键路径”等提炼语气收敛为“为CUTE提供动机/启发”。"
     },
     {
       "field": "proposal_evidence.for_state_of_art",
-      "paper_evidence": "Despite this potential, there is currently insufficient academic focus on CPU/NPU co-computing, and few architectures or toolchains have been developed to support such integration.",
-      "reason": "“IEEE TCAD 2025”与论文元数据一致，但“代表前沿”“是少数支持 RISC-V CPU 参与实际计算的异构编译框架之一”属于合理但偏强的归纳，第二句与 related work 讨论基本一致。",
+      "paper_evidence": "The ONNX-MLIR toolchain [10] is a modular, open-source framework that supports adaptive scaling, converting ONNX input into multilevel intermediate representations (MLIRs). However, it currently lacks support for generating back-end instructions for heterogeneous architectures.",
+      "reason": "该字段将论文定位为基于MLIR的较新异构编译工作，这一判断基本成立；但“前沿工作”属于推断，应保持谨慎。",
       "severity": "minor",
       "status": "partially_supported",
-      "suggested_fix": "弱化为“该论文发表于 IEEE TCAD 2025，关注较少见的 RISC-V CPU/NPU 协同计算编译框架，并强调 CPU 参与异构计算而非仅作主机”"
+      "suggested_fix": "改为较保守表述：该论文代表了基于 ONNX-MLIR 扩展异构后端指令生成的一项近期工作，可作为RISC-V异构编译现状的参考。"
     },
     {
       "field": "proposal_evidence.for_gap",
-      "paper_evidence": "the RV32IM ISA lacks the specialized hardware extensions needed for efficient deep learning workloads. Moving forward, we could explore the integration of more advanced machine learning models, such as transformers",
-      "reason": "该字段总体可由论文支持，但“直接论证 CUTE 工作 1 和工作 2 的必要性”是面向提案的外推，不是论文原始结论。",
+      "paper_evidence": "All_CPU Mode: In this mode, we run YOLOv3-Tiny with an input size of 224 × 224 × 3 (in 8-bit), and observed an extraordinarily high cycle count of 277 billion cycles. One reason for this high cycle count may be that the RV32IM ISA lacks the specialized hardware extensions needed for efﬁcient deep learning workloads. Based on the above analysis, there are two key approaches for our architecture to enhance the CPU inference speed. First, we can customize the instruction set for deep learning tasks; second, a larger cache is needed. However, these architectures often support only a limited number of CNNs and uses the CPU solely as a host, without incorporating it into the computation process. Moving forward, we could explore the integration of more advanced machine learning models, such as transformers, and their adaptation to more heterogeneous architectures.",
+      "reason": "论证方向基本成立，但原文把多个观察提升为对CUTE的系统性支撑，存在轻度外推。尤其“系统性解决方案”不是论文原文结论。",
       "severity": "minor",
       "status": "partially_supported",
-      "suggested_fix": "改成“论文显示基础 RV32IM 对深度学习负载效率不足，且未来工作拟扩展到 Transformer，可作为 CUTE 需求分析的旁证而非直接论证”"
+      "suggested_fix": "改成“这些观察为CUTE关于CPU扩展、编译支持和模型覆盖面的设计提供动机”，避免写成论文直接证明CUTE方案。"
     },
     {
       "field": "proposal_evidence.for_feasibility",
-      "paper_evidence": "At the same time, due to RISC-V’s computational inefficiency, it also has the highest latency at O_P = 0, up to 13 234 ms. For example, ResNet50 requires only 1.97 MB, achieving a 5.58× reduction compared to SS. It achieves up to a 7.06× reduction in code density",
-      "reason": "13 234 ms、5.58×、7.06×有文本依据，作为可行性证据基本成立；但“纯 CPU 推理 13234 ms 表明基线 ISA 无法满足需求”应限定在 specific network / offloading setting，而非泛化所有任务。",
-      "severity": "minor",
+      "paper_evidence": "To ensure compatibility within a heterogeneous archi-\ntecture, each 512-bit NPU instruction must be split into\n18 individual 32-bit instructions in the RISC-V format. For example, ResNet50 requires only 1.97 MB, achieving a 5.58× reduction compared to SS. In comparison to other architectures listed in the table, such as the extended SODA synthesizer in [14], our architecture excels in delivering lower memory footprints (e.g., 24.4 MB for ResNet50 compared to 97.7 MB in [14]) and reduced latency (e.g., 56.7 ms for ResNet50 compared to 1614.8 ms in [14]) even converted to 32-bit precision.",
+      "reason": "第1和第2点有据。第3点中的“28.5倍加速”无法从论文文本中直接验证，属于过度推导；文中只明确给出 56.7 ms 对 1614.8 ms 的对比。",
+      "severity": "major",
       "status": "partially_supported",
-      "suggested_fix": "保留数值，但明确 13 234 ms 对应 YOLOv3 在 O_P=0 情况；将结论改为“显示基础 RV32IM 在该类 CNN 负载上效率有限”"
+      "suggested_fix": "删除“28.5倍加速”表述，改为引用论文明确给出的延迟和内存数据，并把可行性结论限定为“说明低精度与编译器/内存协同优化在该平台上有效”。"
     }
   ],
   "issues": [
     {
-      "field": "theme_secondary",
-      "paper_evidence": "信息不足，无法从文本中提取",
-      "problem": "`theme_secondary` 使用了不在允许枚举中的字符串，且分类也不贴合论文重点。",
-      "recommended_action": "将其改为 `null`。",
-      "severity": "major"
+      "field": "title",
+      "paper_evidence": "A Heterogeneous CNN Compilation Framework for RISC-V CPU and NPU Integration Based on ONNX-MLIR",
+      "problem": "标题与源论文不一致，分析稿使用了中文改写标题而非论文原题。",
+      "recommended_action": "将 `title` 改为论文原始英文标题。",
+      "severity": "critical"
     },
     {
       "field": "contributions[1].evidence",
-      "paper_evidence": "A task scheduler with three operational modes is developed, allowing users to customize the task dis- tribution according to speciﬁc requirements, including correctness veriﬁcation, performance optimization, or detailed analysis of computational workﬂows across heterogeneous platforms",
-      "problem": "引文不是论文中的逐字连续文本，原文存在断词与跨图位置；当前版本属于近似转写。",
-      "recommended_action": "替换为论文正文中的逐字英文句子，保留原有含义。",
+      "paper_evidence": "A task scheduler with three operational modes is developed, allowing users to customize the task distribution according to specific requirements, including correctness verification, performance optimization, or detailed analysis of computational workflows across heterogeneous platforms, which typically emphasizes the versatility of the framework.",
+      "problem": "证据引文不是逐字原文，末尾被改写为更流畅的总结句。",
+      "recommended_action": "替换为论文贡献列表中的精确英文原句。",
       "severity": "minor"
     },
     {
-      "field": "contributions[3].evidence",
-      "paper_evidence": "One effective strategy to address this challenge is to use the padding [32] and reshaping techniques to conform non-power- of-2 FMs to NPU-compatible sizes.",
-      "problem": "当前 evidence 漏掉了引用标记 `[32]`，且 `non-power-of-2` 与原文断字形式不一致，不满足严格逐字要求。",
-      "recommended_action": "改为论文中的逐字英文引文。",
-      "severity": "minor"
-    },
-    {
-      "field": "gap_identified[2].evidence",
-      "paper_evidence": "While this approach can be more complex to manage because it requires explicit data transfers between the memory of CPU and the memory of NPU, it can offer more control. In our work, we chose to use discrete memory allocation.",
-      "problem": "当前 evidence 使用省略号拼接，非逐字引文；同时 gap 描述只强调效率限制，遗漏论文同时指出其“can offer more control”。",
-      "recommended_action": "改写 gap 为更中性的管理复杂度/显式传输开销表述，并替换为逐字引文。",
+      "field": "gap_identified[1].evidence",
+      "paper_evidence": "One reason for this high cycle count may be that the RV32IM ISA lacks the specialized hardware extensions needed for efﬁcient deep learning workloads. Based on the above analysis, there are two key approaches for our architecture to enhance the CPU inference speed. First, we can customize the instruction set for deep learning tasks; second, a larger cache is needed.",
+      "problem": "原 evidence 使用了带省略号的拼接句，不是论文中的直接英文引文。",
+      "recommended_action": "改用论文中的完整直接引文，避免省略号和自造连接。",
       "severity": "major"
     },
     {
+      "field": "gap_identified[2].evidence",
+      "paper_evidence": "In our work, we chose to use discrete memory allocation. While this approach can be more complex to manage because it requires explicit data transfers between the memory of CPU and the memory of NPU, it can offer more control.",
+      "problem": "证据接近原文，但顺序和断句与论文不完全一致。",
+      "recommended_action": "替换为论文中的精确两句原文。",
+      "severity": "minor"
+    },
+    {
       "field": "key_results",
-      "paper_evidence": "observed an extraordinarily high cycle count of 277 billion cycles.",
-      "problem": "原 dossier 将 `277 billion cycles` 写成了“2770 亿周期”，数值量级不一致，属于关键结果错误。",
-      "recommended_action": "将该结果改回论文原值 `277 billion cycles`，并注明对象是 YOLOv3-Tiny 在 all_CPU 模式下。",
+      "paper_evidence": "In comparison to other architectures listed in the table, such as the extended SODA synthesizer in [14], our architecture excels in delivering lower memory footprints (e.g., 24.4 MB for ResNet50 compared to 97.7 MB in [14]) and reduced latency (e.g., 56.7 ms for ResNet50 compared to 1614.8 ms in [14]) even converted to 32-bit precision.",
+      "problem": "分析稿把 ResNet50 与 [14] 的比较内存写成 11.00MB 对 97.7MB，混淆了 SS/DE 内部比较与跨论文比较。",
+      "recommended_action": "分别写清两类结果：DE 对 SS 为 1.97 MB 对 11.00 MB；与 [14] 对比为 24.4 MB 对 97.7 MB、56.7 ms 对 1614.8 ms。",
+      "severity": "major"
+    },
+    {
+      "field": "proposal_evidence.for_feasibility",
+      "paper_evidence": "信息不足，无法从文本中提取",
+      "problem": "“相比32-bit实现（1614.8ms）有28.5倍加速”这一数值关系无法从论文文本中直接成立；1614.8 ms 来自与文献 [14] 的对比，不是同一实现的 32-bit 基线。",
+      "recommended_action": "删除 28.5 倍加速说法，改用论文直接给出的延迟与内存数据。",
       "severity": "major"
     }
   ],
   "overall_verdict": "major_revision",
   "ready_for_proposal_use": false,
   "review_target": {
-    "analysis_json_path": "/root/opencute/slides/2026.04_todo_yjp-ktbg/workspace/llm_get_point/glm5.1/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json",
-    "analysis_title": "A Heterogeneous CNN Compilation Framework for RISC-V CPU and NPU Integration Based on ONNX-MLIR",
-    "paper_json_path": "/root/opencute/slides/2026.04_todo_yjp-ktbg/workspace/corpus/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json",
+    "analysis_json_path": "/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/llm/glm5.1/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json",
+    "analysis_title": "一种基于ONNX-MLIR的面向RISC-V CPU与NPU集成的异构CNN编译框架",
+    "paper_json_path": "/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json",
     "paper_title": "A Heterogeneous CNN Compilation Framework for RISC-V CPU and NPU Integration Based on ONNX-MLIR",
     "resolved_paper_by": "explicit_path"
   },
   "stats": {
     "matched_evidence_quotes": 4,
-    "matched_numeric_claims": 10,
+    "matched_numeric_claims": 23,
     "missing_required_fields": [],
     "required_field_count": 17,
     "total_evidence_quotes": 7,
-    "total_numeric_claims": 11
+    "total_numeric_claims": 25
   },
-  "summary": "该 dossier 结构完整，论文匹配正确，主线判断也基本围绕 ONNX-MLIR 异构编译框架展开。主要问题集中在次主题枚举不合法、3 处 evidence 不是严格逐字引文，以及 `277 billion cycles` 被误写成了错误量级的中文数值。修正这些问题后，材料可作为较稳妥的提案参考，但当前版本还不适合直接下游使用。"
+  "summary": "该分析稿整体抓住了论文主线，主题归类和多数技术要点基本可信，但存在一个关键元数据错误、至少一处非逐字证据引文，以及若干结果数字口径混淆。最主要的问题是标题未与源论文一致、第二个 gap 的 evidence 不是论文原句、以及将内部内存比较与跨论文比较混写。修正后可继续用于提案参考，但当前版本还不适合直接下游使用。"
 }

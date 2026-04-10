@@ -18,20 +18,25 @@ from json import JSONDecoder
 from typing import Any
 
 
-REPO_ROOT = pathlib.Path("/root/opencute")
-WORKSPACE_ROOT = REPO_ROOT / "slides/2026.04_todo_yjp-ktbg/workspace"
-CORPUS_DIR = WORKSPACE_ROOT / "corpus"
-ANALYSIS_DIR = WORKSPACE_ROOT / "llm_get_point" / "glm5.1"
-REVIEW_DIR = WORKSPACE_ROOT / "llm_get_point" / "gpt5.4"
-LOG_DIR = WORKSPACE_ROOT / "scripts" / "logs" / "paper_review_pipeline"
-STATUS_DIR = LOG_DIR / "status"
-RUNS_DIR = WORKSPACE_ROOT / "scripts" / "runs" / "paper_review_pipeline"
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+SURVEY_ROOT = REPO_ROOT / "workspace" / "survey"
+DEFAULT_TOPIC = "cpu-ai"
 CLAUDE_COMMAND_NAME = "analyze-paper-claude"
 CODEX_REVIEW_SCRIPT = (
-    REPO_ROOT
-    / "workspace/survey/skill/codex/paper-json-review/scripts/run_codex_review.sh"
+    SURVEY_ROOT / "skill" / "codex" / "paper-json-review" / "scripts" / "run_codex_review.sh"
 )
-SUMMARY_FILE = RUNS_DIR / "latest" / "summary.json"
+
+
+def default_dirs(topic: str) -> dict[str, pathlib.Path]:
+    """Compute default directories for a given topic."""
+    corpus = SURVEY_ROOT / "data" / "topics" / topic / "corpus"
+    return {
+        "corpus": corpus / "draft",
+        "analysis": corpus / "llm" / "glm5.1",
+        "review": corpus / "llm" / "gpt5.4",
+        "logs": corpus / "paper_review_pipeline",
+        "runs": corpus / "paper_review_pipeline",
+    }
 
 
 @dataclass(frozen=True)
@@ -49,6 +54,11 @@ class PaperJob:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--topic",
+        default=DEFAULT_TOPIC,
+        help=f"Topic directory name under data/topics/ (default: {DEFAULT_TOPIC}).",
+    )
+    parser.add_argument(
         "--papers",
         nargs="*",
         help="Explicit paper JSON paths. If omitted, select from corpus by --limit.",
@@ -59,28 +69,32 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Number of corpus papers to process when --papers is omitted. If omitted, process all corpus papers.",
     )
+    # Pre-parse to get topic for defaults
+    _known = parser.parse_known_args()[0]
+    _dirs = default_dirs(_known.topic)
+
     parser.add_argument(
         "--analysis-dir",
         type=pathlib.Path,
-        default=ANALYSIS_DIR,
+        default=_dirs["analysis"],
         help="Directory for Claude-generated dossier JSON files.",
     )
     parser.add_argument(
         "--review-dir",
         type=pathlib.Path,
-        default=REVIEW_DIR,
+        default=_dirs["review"],
         help="Directory for Codex review/revised JSON files.",
     )
     parser.add_argument(
         "--log-dir",
         type=pathlib.Path,
-        default=LOG_DIR,
+        default=_dirs["logs"],
         help="Directory where Claude/Codex command logs will be written.",
     )
     parser.add_argument(
         "--status-dir",
         type=pathlib.Path,
-        default=STATUS_DIR,
+        default=_dirs["logs"] / "status",
         help="Directory where per-paper stage status JSON files will be written.",
     )
     parser.add_argument(
@@ -123,8 +137,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--summary-file",
         type=pathlib.Path,
-        default=SUMMARY_FILE,
-        help="Where to write the pipeline run summary JSON. Defaults to runs/paper_review_pipeline/latest/summary.json.",
+        default=_dirs["runs"] / "latest" / "summary.json",
+        help="Where to write the pipeline run summary JSON.",
     )
     parser.add_argument(
         "--claude-timeout-sec",
@@ -148,6 +162,12 @@ def parse_args() -> argparse.Namespace:
         "--run-id",
         default="latest",
         help="Run identifier used under workspace/scripts/runs/paper_review_pipeline/.",
+    )
+    parser.add_argument(
+        "--corpus-dir",
+        type=pathlib.Path,
+        default=None,
+        help="Override corpus draft directory (auto-derived from --topic if omitted).",
     )
     parser.add_argument(
         "--retry-failed-from",
@@ -228,9 +248,11 @@ def select_papers(args: argparse.Namespace) -> list[pathlib.Path]:
     if args.papers:
         papers = [pathlib.Path(p).expanduser().resolve() for p in args.papers]
     else:
+        corpus_dir = getattr(args, "corpus_dir", None) or default_dirs(args.topic)["corpus"]
+        args.corpus_dir = corpus_dir
         corpus_files = sorted(
             path
-            for path in CORPUS_DIR.glob("*.json")
+            for path in corpus_dir.glob("*.json")
             if path.name != "index.json"
         )
         papers = corpus_files if args.limit is None else corpus_files[: args.limit]
@@ -453,7 +475,7 @@ def claude_command(job: PaperJob, args: argparse.Namespace) -> list[str]:
         "--allowedTools",
         "Read,Grep,Glob,Bash",
         "--add-dir",
-        str(WORKSPACE_ROOT),
+        str(SURVEY_ROOT),
     ]
     if args.claude_model:
         command.extend(["--model", args.claude_model])
@@ -466,6 +488,7 @@ def codex_command(job: PaperJob, args: argparse.Namespace) -> list[str]:
         str(args.codex_review_script),
         str(job.analysis_json),
         str(job.paper_json),
+        str(args.review_dir),
     ]
 
 
@@ -741,9 +764,13 @@ def write_summary(path: pathlib.Path, summary: list[dict[str, Any]]) -> None:
 
 
 async def async_main(args: argparse.Namespace) -> int:
+    _dirs = default_dirs(args.topic)
     if args.run_id:
-        run_root = RUNS_DIR / args.run_id
+        run_root = _dirs["runs"] / args.run_id
         args.summary_file = run_root / "summary.json"
+    # Ensure corpus_dir is set
+    if not getattr(args, "corpus_dir", None):
+        args.corpus_dir = _dirs["corpus"]
     jobs = build_jobs(args)
     if not jobs:
         print("No papers selected.", file=sys.stderr)
@@ -752,7 +779,8 @@ async def async_main(args: argparse.Namespace) -> int:
     print(f"Selected {len(jobs)} paper(s).")
     mode = "strict-serial" if args.strict_serial else "pipelined-1x1"
     print(f"Mode: {mode}")
-    print(f"Corpus dir:   {CORPUS_DIR}")
+    print(f"Corpus dir:   {args.corpus_dir}")
+    print(f"Topic:        {args.topic}")
     print(f"Claude dir:   {args.analysis_dir}")
     print(f"Codex dir:    {args.review_dir}")
     print(f"Log dir:      {args.log_dir}")

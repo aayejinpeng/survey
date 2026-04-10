@@ -1,0 +1,1101 @@
+OpenAI Codex v0.118.0 (research preview)
+--------
+workdir: /root/opencute/workspace/survey
+model: gpt-5.4
+provider: OpenAI
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR, /root/.codex/memories]
+reasoning effort: low
+reasoning summaries: none
+session id: 019d761d-5424-78e2-abb0-2dbc1361caaa
+--------
+user
+Use the paper-json-review skill to review /root/opencute/workspace/survey/data/topics/cpu-ai/corpus/llm/glm5.1/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json against /root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json. Output only one JSON object with two top-level keys: review and revised_analysis. The review must contain the structured review JSON. The revised_analysis must be the corrected dossier JSON after applying the review findings.
+warning: Codex could not find system bubblewrap on PATH. Please install bubblewrap with your package manager. Codex will use the vendored bubblewrap in the meantime.
+  → Read paper-json-review skill instructions and identify required workflow
+  • Inspect the analysis JSON and source paper JSON, then run any preflight checker
+  • Verify claims against source paper content and produce corrected review + revised analysis JSON
+exec
+/usr/bin/zsh -lc "sed -n '1,220p' /root/opencute/workspace/survey/skill/codex/paper-json-review/SKILL.md" in /root/opencute/workspace/survey
+ succeeded in 0ms:
+---
+name: "paper-json-review"
+description: "Use when the user asks to review a paper-analysis JSON generated from `workspace/corpus/` against the source paper, especially Claude/LLM generated dossier JSON for proposal writing. Resolve the source paper, run the bundled preflight checker, verify claims against the actual paper text, and output both a structured review JSON and a corrected revised dossier JSON."
+---
+
+# Paper JSON Review
+
+Review whether an LLM-generated paper dossier is faithful to the original paper JSON in `workspace/corpus/`.
+
+This skill is for the second pass: it does not generate the first draft dossier itself. It checks whether an existing dossier JSON is structurally valid, quote-grounded, and semantically supported by the paper text, then produces a corrected revised dossier JSON.
+
+## When to use
+
+- The user asks to review or audit a Claude/LLM generated paper JSON.
+- The user wants machine-readable JSON outputs, not prose comments.
+- The source paper lives in `slides/2026.04_todo_yjp-ktbg/workspace/corpus/`.
+- The dossier follows the proposal-writing schema described in `references/analysis-contract.md`.
+
+## Skill path
+
+```bash
+export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+export PAPER_JSON_REVIEW_CLI="$CODEX_HOME/skills/paper-json-review/scripts/preflight_review.py"
+```
+
+For this repo, keep the skill source in:
+
+`/root/opencute/workspace/survey/skill/codex/paper-json-review`
+
+and link it into:
+
+`$CODEX_HOME/skills/paper-json-review`
+
+using `scripts/install_workspace_codex_home.sh` before invoking Codex CLI.
+
+## Inputs
+
+Prefer these inputs:
+
+1. The generated dossier JSON path to review.
+2. Optional source paper JSON path.
+
+If the source paper path is missing, infer it from DOI first, then title.
+
+## Workflow
+
+1. Resolve files.
+- Read the dossier JSON.
+- Resolve the source paper JSON from `workspace/corpus/`.
+- If multiple papers are plausible matches, stop and ask the user for the exact paper.
+
+2. Run the deterministic preflight checker first.
+
+```bash
+python "$PAPER_JSON_REVIEW_CLI" \
+  --analysis-json /abs/path/to/generated.json \
+  --paper-json /abs/path/to/paper.json \
+  --pretty
+```
+
+If the paper path is omitted:
+
+```bash
+python "$PAPER_JSON_REVIEW_CLI" \
+  --analysis-json /abs/path/to/generated.json \
+  --pretty
+```
+
+If you want to invoke the whole review through Codex CLI in this repo, prefer:
+
+```bash
+/root/opencute/workspace/survey/skill/codex/paper-json-review/scripts/run_codex_review.sh \
+  /root/opencute/slides/2026.04_todo_yjp-ktbg/workspace/llm_get_point/glm5.1/A-Heterogeneous-CNN-Compilation-Framework.json
+```
+
+3. Use the preflight report as a floor, not the final answer.
+- The script checks structure, metadata alignment, allowed enums, quote presence, and numeric string presence.
+- You must still read the paper `abstract` and only the relevant `body_text` passages before final judgment.
+- Prefer targeted extraction around disputed claims, quoted evidence, and numeric results. Do not reread the full `body_text` unless preflight cannot localize the needed evidence.
+- Focus extra attention on `key_technique`, `key_results`, `gap_identified`, and all `proposal_evidence` fields because these often contain paraphrase drift or invented implications.
+
+4. Review the dossier against the paper.
+- Confirm metadata matches the corpus paper.
+- Confirm each English `evidence` quote is actually present in the paper text.
+- Confirm Chinese summaries do not overstate what the paper proves.
+- Confirm numbers, speedups, memory figures, cycle counts, and baselines are faithful.
+- Confirm theme/workstream/baseline classification follows `references/analysis-contract.md`.
+- Flag unsupported proposal-writing extrapolations even if they sound plausible.
+
+5. Produce the corrected dossier after the review.
+- Apply the review findings to generate a revised dossier JSON that follows `references/analysis-contract.md`.
+- Preserve supported content.
+- Fix incorrect quotes, numbers, and overstatements.
+- If a claim cannot be supported by the paper, either rewrite it conservatively or replace it with `信息不足，无法从文本中提取`.
+
+6. Output only one bundle JSON.
+- Follow `references/review-schema.md`.
+- Do not output Markdown.
+- Do not wrap the JSON in code fences.
+- Start with `{` and end with `}`.
+- The final object must contain both top-level keys: `review` and `revised_analysis`.
+
+## Review standards
+
+- Be conservative: unsupported is better than guessed.
+- Distinguish `partially_supported` from `incorrect`.
+- Quote English paper text in `paper_evidence` when possible.
+- If the paper text is insufficient, write `信息不足，无法从文本中提取`.
+- Prefer a small number of precise issues over many vague complaints.
+- If the dossier is usable with small edits, use `minor_revision`.
+- If multiple core fields are unsupported or quotes are fabricated, use `major_revision` or `reject`.
+- `revised_analysis` should be immediately usable for downstream web inspection.
+
+## Output and save conventions
+
+- If the user only asks for the review, still produce both the review and the corrected revised dossier JSON.
+- If the user asks to save it, prefer:
+  `slides/2026.04_todo_yjp-ktbg/workspace/llm_get_point/gpt5.4/<paper-stem>.review.json`
+- And also save:
+  `slides/2026.04_todo_yjp-ktbg/workspace/llm_get_point/gpt5.4/<paper-stem>.revised.json`
+
+## References
+
+- Target dossier contract: `references/analysis-contract.md`
+- Review output contract: `references/review-schema.md`
+- JSON Schema for `codex exec --output-schema`: `references/review-output.schema.json`
+
+Using the `paper-json-review` skill. I’ve loaded the workflow and will now run the preflight checker, then verify the disputed fields against the source paper JSON before producing the bundled review output.
+  ✓ Read paper-json-review skill instructions and identify required workflow
+  → Inspect the analysis JSON and source paper JSON, then run any preflight checker
+  • Verify claims against source paper content and produce corrected review + revised analysis JSON
+exec
+/usr/bin/zsh -lc "sed -n '1,240p' /root/opencute/workspace/survey/data/topics/cpu-ai/corpus/llm/glm5.1/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json" in /root/opencute/workspace/survey
+ succeeded in 0ms:
+{
+  "title": "一种基于ONNX-MLIR的面向RISC-V CPU与NPU集成的异构CNN编译框架",
+  "authors": "Shan Cao, Meiling Yang, Yintao Liu, Yu Li, Beining Zhao, Xinyu Chen, Zhiyuan Jiang",
+  "year": 2025,
+  "venue": "IEEE-TCAD",
+  "doi": "10.1109/TCAD.2025.3564561",
+  "research_purpose": "针对RISC-V CPU与NPU异构平台上的CNN推理部署问题，提出一个基于ONNX-MLIR的编译框架，解决从算法到异构架构的映射与编译挑战。该框架通过算子打包、任务调度和内存管理等技术，实现CPU与NPU之间的协同计算，弥合两者之间的算力差距。",
+  "research_significance": "该工作填补了CPU/NPU协计算领域学术关注的空白，为数不多的将CPU作为计算参与者（而非仅作为主机）的异构编译框架之一。通过扩展ONNX-MLIR开源工具链，提供了一套通用的、可配置的CNN异构部署方案，支持多种CNN模型（VGG、ResNet、YOLO等）在不同硬件配置下的高效推理。实验表明该框架在代码密度和内存使用方面分别实现了最高7.06倍和5.58倍的改进。",
+  "contributions": [
+    {
+      "point": "提出算子打包（operator packing）技术，通过扩展ONNX-MLIR框架添加自定义算子，将多个CNN操作封装为复合操作并映射到NPU指令，减少异构操作之间的切换开销",
+      "evidence": "By extending the ONNX-MLIR framework with custom operators, we introduce an operator packing technique that maximizes the computational efficiency of NPUs, while minimizing overhead during transitions between heterogeneous operations."
+    },
+    {
+      "point": "开发了三模式任务调度器，支持用户在正确性验证（ALL_CPU）、自定义分配（USER_DEFINE）和默认优化（DEFAULT）模式之间灵活切换，展示了框架的多功能性",
+      "evidence": "A task scheduler with three operational modes is developed, allowing users to customize the task distribution according to specific requirements, including correctness verification, performance optimization, or detailed analysis of computational workflows across heterogeneous platforms."
+    },
+    {
+      "point": "提出了面向CPU/NPU异构架构的优化内存管理方案，包含双端（DE）分配策略与自检功能、以及释放后使用（RU）机制，确保跨平台计算中数据访问的正确性并提升内存效率",
+      "evidence": "The memory management system incorporates two techniques: a dual-end (DE) allocation strategy with a self-check function, and a release-after-use (RU) mechanism that minimizes memory footprint."
+    },
+    {
+      "point": "在ONNX-MLIR中实现了三个优化阶段——算子打包、算法适配和数据协调，弥合异构平台之间的计算差距",
+      "evidence": "To bridge the computational gap between heterogeneous platforms, within ONNX-MLIR, we developed three phases to support operator packing, algorithm adaption, and data coordination."
+    }
+  ],
+  "theme_primary": "7. Compiler / tensor IR / operator generation",
+  "theme_secondary": "4. RISC-V custom ISA / open ISA AI extension",
+  "workstream_fit": "2",
+  "is_close_baseline_to_cute": false,
+  "key_technique": "核心技术基于扩展ONNX-MLIR工具链构建异构编译框架：1）在ONNX dialect中添加三类自定义算子（I3O1OfNPU、I4O1OfNPU、I1O1OfNPU）实现算子打包，将CONV+ReLU/Pool、CONV+Add+ReLU/Pool、GEMM+ReLU/Reshape等组合封装为NPU函数；2）通过padding和reshaping技术将非2的幂次FM尺寸适配到NPU兼容格式，并在CPU侧修改FM存储顺序为channel-major以匹配NPU；3）使用RISC-V custom opcode空间（「00」和「10」前缀）将512-bit NPU指令拆分为18条32-bit RISC-V格式指令，实现NPU指令在RISC-V ISA中的无缝集成；4）采用动态量化将浮点权重转换为定点数据，并配合编译器级循环分块进行权重重排。",
+  "key_results": "在RV32IM CPU（8KB L1 cache）和自研NPU（SMIC 40nm，200MHz）平台上评估：1）代码密度最高降低7.06倍，内存使用最高改善5.58倍（DE机制 vs 顺序存储）；2）ResNet50内存占用从SS的11.00MB降至DE的1.97MB，延迟为56.7ms（8-bit量化），相比Curzel等人97.7MB/1614.8ms有显著优势；3）ALL_CPU模式下YOLOv3-Tiny（224×224×3, 8-bit）需要2770亿周期，凸显了RV32IM ISA缺少SIMD/向量扩展的瓶颈；4）与NEST-C相比，在相同精度和低频下延迟快11.2倍。",
+  "gap_identified": [
+    {
+      "gap": "该框架仅支持CNN类网络，未覆盖Transformer等更先进的机器学习模型，限制了其在当前主流AI推理场景中的应用范围。",
+      "evidence": "Moving forward, we could explore the integration of more advanced machine learning models, such as transformers, and their adaptation to more heterogeneous architectures. This will be part of our future work.",
+      "relevance_to_cute": "该gap直接关联CUTE工作项1（CPU矩阵算力扩展）：若在RISC-V CPU端引入矩阵/张量扩展指令，可为Transformer等新模型的CPU端推理提供算力支撑，弥补NPU无法覆盖的算子类型。"
+    },
+    {
+      "gap": "使用的RISC-V CPU仅采用RV32IM基础指令集，缺乏SIMD、向量扩展或专用加速器，导致纯CPU推理性能极差（YOLOv3-Tiny需2770亿周期），论文自身指出了定制指令集和更大cache的必要性。",
+      "evidence": "One reason for this high cycle count may be that the RV32IM ISA lacks the specialized hardware extensions needed for efficient deep learning workloads... there are two key approaches for our architecture to enhance the CPU inference speed. First, we can customize the instruction set for deep learning tasks; second, a larger cache is needed.",
+      "relevance_to_cute": "该gap直接支撑CUTE工作项1（CPU矩阵算力扩展）和工作项2（RVV AI向量增强）的核心动机：为RISC-V CPU添加矩阵扩展和向量AI增强指令是解决CPU推理瓶颈的关键路径。"
+    },
+    {
+      "gap": "框架的内存管理采用离散式分配策略，CPU和NPU各自维护独立地址空间，需要显式数据传输，可能引入带宽竞争和延迟开销。",
+      "evidence": "In our work, we chose to use discrete memory allocation... While this approach can be more complex to manage because it requires explicit data transfers between the memory of CPU and the memory of NPU, it can offer more control.",
+      "relevance_to_cute": "该gap对CUTE工作项1中的scratchpad/数据流设计和工作项3（HBM/多节点系统架构）有启发：如何在CPU核内集成矩阵加速器并优化片上数据流，避免离散内存带来的传输开销，是CUTE需要解决的问题。"
+    }
+  ],
+  "proposal_evidence": {
+    "for_state_of_art": "该论文代表了RISC-V CPU/NPU异构编译领域的前沿工作，发表于2025年IEEE-TCAD（集成电路设计自动化顶级期刊）。它展示了一种基于MLIR多级中间表示的编译方法，通过扩展ONNX-MLIR实现CNN在异构平台上的自动映射和优化，体现了编译器驱动的硬件-软件协同设计趋势。然而，该工作仅使用RV32IM基础指令集，未利用RISC-V向量扩展或矩阵扩展，说明当前RISC-V生态在AI加速方面仍有较大提升空间。",
+    "for_gap": "该论文揭示了三个关键研究空白：1）现有RISC-V CPU在AI推理中严重缺乏专用计算能力——纯CPU执行YOLOv3-Tiny需要2770亿周期，论文明确指出需要「定制指令集」和「更大cache」；2）现有异构编译框架大多将CPU仅作为主机而非计算参与者，限制了系统的通用性和扩展性；3）该框架仅覆盖CNN，未支持Transformer等现代模型。这些空白直接支撑开题报告的gap论证：CUTE提出的CPU矩阵算力扩展、RVV AI向量增强和系统级架构优化正是针对这些不足的系统性解决方案。",
+    "for_feasibility": "该论文的实验数据为CUTE的可行性提供了重要参考：1）RISC-V custom opcode空间足以容纳NPU指令（论文成功将512-bit NPU指令映射到32-bit RISC-V custom格式），证明在RISC-V ISA中集成矩阵扩展指令在编码空间上是可行的；2）DE内存管理机制在ResNet50上实现5.58倍内存优化（从11.00MB降至1.97MB），表明精心设计的片上内存管理能显著提升效率；3）8-bit量化后的ResNet50延迟为56.7ms（200MHz NPU），相比32-bit实现（1614.8ms）有28.5倍加速，验证了低精度计算在边缘AI部署中的有效性。"
+  }
+}
+
+exec
+/usr/bin/zsh -lc "sed -n '1,260p' /root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json" in /root/opencute/workspace/survey
+ succeeded in 0ms:
+{
+  "file": "A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.pdf",
+  "title": "A Heterogeneous CNN Compilation Framework for RISC-V CPU and NPU Integration Based on ONNX-MLIR",
+  "authors": "Shan Cao",
+  "year": 2025,
+  "venue": "IEEE-TCAD",
+  "doi": "10.1109/TCAD.2025.3564561",
+  "url": "https://doi.org/10.1109/TCAD.2025.3564561",
+  "abstract": "With the continuous advancement of convolutional neural networks (CNNs), many neural network processing units (NPUs) have emerged in recent years. NPUs offer advantages, such as improved energy efficiency and low latency compared to traditional processors. However, NPUs often struggle to keep pace with the growing complexity of algorithmic models, which limits the implementation of certain AI applications. Central processing units (CPUs) are known for their versatility, but are computationally inefficient. Combining the strengths of both architectures could present a viable solution to these challenges. Despite this potential, there is currently insufficient academic focus on CPU/NPU co-computing, and few architectures or toolchains have been developed to support such integration. In this article, we propose a RISC-V CPU/NPU co-computing-based compilation framework to solve the problem of mapping from algorithms to heterogeneous architectures. To bridge the computational gap between heterogeneous platforms, within ONNX-MLIR, we developed three phases to support operator packing, algorithm adaption, and data coordination. To integrate heterogeneous compilation platforms, we introduce four additional functions to handle task scheduling, weight quantization, weight rearrangement, and memory management. In particular: 1) to optimize the transition overhead, an operator packing technique is introduced by extending the ONNX-MLIR framework with custom operators, which enhances NPU efficiency by reducing the number of transitions between operations; 2) at the aspect of task scheduling, a three-mode task scheduler is developed to allow users to customize task distribution for correctness verification, performance optimization, or detailed analysis on heterogeneous platforms, which demonstrates the versatility of our framework; and 3) In terms of memory management, an optimized scheme for CPU/NPU architectures is proposed to ensure accurate data access. This memory management employs a dual-end approach with self-checks and a release-after-use mechanism to further improve efficiency. Experimental results demonstrate that the framework effectively generates instructions for various CNNs, significantly enhancing the efficiency and performance of heterogeneous architectures. It achieves up to a $7.06\\times $ reduction in code density and up to a $5.58\\times $ improvement in memory usage, narrowing the computational gap between CPUs and NPUs.",
+  "citation_count": "1",
+  "relevance_score": "12",
+  "relevance": "High",
+  "matched_keywords": "RISC-V, CPU, quantization, AI, neural",
+  "body_text": "IEEE TRANSACTIONS ON COMPUTER-AIDED DESIGN OF INTEGRATED CIRCUITS AND SYSTEMS, VOL. 44, NO. 11, NOVEMBER 2025\nA Heterogeneous CNN Compilation Framework\nfor RISC-V CPU and NPU Integration Based\non ONNX-MLIR\nShan Cao\n, Member, IEEE, Meiling Yang, Yintao Liu, Yu Li,\nBeining Zhao, Graduate Student Member, IEEE, Xinyu Chen, and Zhiyuan Jiang\n, Member, IEEE\nAbstract—With the continuous advancement of convolutional\nneural networks (CNNs), many neural network processing units\n(NPUs) have emerged in recent years. NPUs offer advantages,\nsuch as improved energy efﬁciency and low latency compared to\ntraditional processors. However, NPUs often struggle to keep pace\nwith the growing complexity of algorithmic models, which limits\nthe implementation of certain AI applications. Central processing\nunits (CPUs) are known for their versatility, but are computa-\ntionally inefﬁcient. Combining the strengths of both architectures\ncould present a viable solution to these challenges. Despite\nthis potential, there is currently insufﬁcient academic focus on\nCPU/NPU co-computing, and few architectures or toolchains\nhave been developed to support such integration. In this article,\nwe propose a RISC-V CPU/NPU co-computing-based compilation\nframework to solve the problem of mapping from algorithms\nto heterogeneous architectures. To bridge the computational\ngap between heterogeneous platforms, within ONNX-MLIR, we\ndeveloped three phases to support operator packing, algorithm\nadaption, and data coordination. To integrate heterogeneous\ncompilation platforms, we introduce four additional functions\nto handle task scheduling, weight quantization, weight rear-\nrangement, and memory management. In particular: 1) to\noptimize the transition overhead, an operator packing technique\nis introduced by extending the ONNX-MLIR framework with\ncustom operators, which enhances NPU efﬁciency by reducing\nthe number of transitions between operations; 2) at the aspect\nof task scheduling, a three-mode task scheduler is developed\nto allow users to customize task distribution for correctness\nveriﬁcation, performance optimization, or detailed analysis on\nheterogeneous platforms, which demonstrates the versatility of\nour framework; and 3) In terms of memory management, an\noptimized scheme for CPU/NPU architectures is proposed to\nensure accurate data access. This memory management employs\na dual-end approach with self-checks and a release-after-use\nmechanism to further improve efﬁciency. Experimental results\ndemonstrate that the framework effectively generates instructions\nfor various CNNs, signiﬁcantly enhancing the efﬁciency and\nperformance of heterogeneous architectures. It achieves up to a\nReceived 9 December 2024; revised 5 March 2025 and 14 April 2025;\naccepted 18 April 2025. Date of publication 25 April 2025; date of current\nversion 22 October 2025. This work was supported in part by the National\nNatural Science Foundation of China (NSFC) under Grant 62271300 and\nGrant 12141107, and in part by the Shanghai Science and Technology Plan\nProject under Grant 24DP1501100 and Grant 24DP1500600. This article was\nrecommended by Associate Editor T. Theocharides. (Corresponding author:\nShan Cao.)\nThe authors are with the Key Laboratory of Specialty Fiber Optics and\nOptical Access Networks, Joint International Research Laboratory of Specialty\nFiber Optics and Advanced Communication, Shanghai Institute for Advanced\nCommunication and Data Science, Shanghai University, Shanghai 200444,\nChina (e-mail: cshan@shu.edu.cn yimilier@shu.edu.cn; berialest@shu.edu.cn;\ncarrplee@shu.edu.cn;\nzbn@shu.edu.cn;\nchenxinyu5523@shu.edu.cn;\njiangzhiyuan@shu.edu.cn).\nDigital Object Identiﬁer 10.1109/TCAD.2025.3564561\n7.06× reduction in code density and up to a 5.58× improvement\nin memory usage, narrowing the computational gap between\nCPUs and NPUs.\nIndex Terms—Compilation framework, heterogeneous plat-\nform, neural processing unit (NPU), ONNX-MLIR, RISC-V.\nI. INTRODUCTION\nC\nONVOLUTIONAL neural networks (CNNs) have shown\nremarkable advantages in image processing and are\nextensively used in various artiﬁcial intelligence (AI) appli-\ncations, such as face recognition [1], object detection [2],\nand automatic driving [3]. However, as the scale and appli-\ncation scenario of these networks increases, CNNs introduce\nhigher computation capability and energy efﬁciency demands,\nexceeding the capabilities of central processing units (CPUs)\nand graphics processing units (GPUs). To address this growing\nneed, the design of efﬁcient processors speciﬁcally tailored for\nneural networks, known as neural processing units (NPUs),\nhas become essential.\nNPUs play a crucial role in the advancement of AI, offering\nbeneﬁts, such as low energy consumption, low latency, high\ncomputing efﬁciency, and programmability. However, NPU\ntends to be less generalizable due to design cost consider-\nations. They also struggle to keep pace with the increasing\ncomplexity of algorithmic models, limiting the implementa-\ntion of CNNs with diverse operators. Although CPUs are\nknown for their versatility, they suffer from low energy\nefﬁciency for data- and computation-intensive CNN inference\ntasks [4]. Therefore, a heterogeneous CPU/NPU platform is\nessential to perform multiple CNN inference computations\nwhile meeting performance and power constraints. However,\nthere is currently a lack of academic focus on CPU/NPU\nresearch, and few architectures or toolchains have been\ndeveloped to support co-computing between these two types of\nprocessors.\nOn the CPU side, the RISC-V architecture is gaining pop-\nularity in edge computing due to its open-source and modular\nnature. It allows ﬂexible selection of instruction subsets tai-\nlored to speciﬁc applications. For example, RV32IMC is used\nin [5] for low-power scenarios in small areas. Additionally,\nRISC-V reserves signiﬁcant instruction code space for user-\ndeﬁned extensions [6], [7], making it ideal for domain-speciﬁc\nenhancements. A notable example is RV-CNN, a domain-\nspeciﬁc instruction set with nine matrix instructions based\non the custom’ instruction in [7], which improves code\n1937-4151 c⃝2025 IEEE. All rights reserved, including rights for text and data mining, and training of artiﬁcial intelligence\nand similar technologies. Personal use is permitted, but republication/redistribution requires IEEE permission.\nSee https://www.ieee.org/publications/rights/index.html for more information.\nCAO et al.: HETEROGENEOUS CNN COMPILATION FRAMEWORK\ndensity while maintaining ﬂexibility and efﬁciency for CNNs.\nConsiderable academic work [8], [9] has explored mapping\nCNNs to RISC-V instructions, but most efforts focus on neural\nnetwork deployment rather than computational efﬁciency.\nThe ONNX-MLIR toolchain [10] is a modular, open-source\nframework that supports adaptive scaling, converting ONNX\ninput into multilevel intermediate representations (MLIRs).\nHowever, it currently lacks support for generating back-end\ninstructions for heterogeneous architectures.\nOn the NPU side, customization requirements necessitate\na dedicated CNN compiler for generating instructions. The\ncompilers of CNN accelerators serve as a bridge between hard-\nware and algorithms, optimizing network models based on the\ntarget hardware architecture. Compilation-level optimization\ntechniques, such as loop tiling [11], can help address the\nlimitations of network deployment imposed by hardware\nresource constraints. However, challenges remain, including\nunimplemented operators and unique architectures. These\nissues highlight the need for a heterogeneous computing\narchitecture that can integrate NPUs with other processing\nunits, enabling cross-architecture optimization and leveraging\nthe strengths of diverse hardware platforms.\nDifferent hardware architectures often have their own\nunique instruction sets and capabilities. To integrate a\nheterogeneous compilation platform that supports multiple\narchitectures, it is essential to ensure that the generated code\nis compatible across all targeted devices. Many architec-\ntures [12], [13] designed for heterogeneous computing have\nemerged in recent years. Additionally, several architectures\nthat exhibit heterogeneous-like characteristics have been intro-\nduced [14], [15]. However, these architectures often support\nonly a limited number of CNNs and uses the CPU solely as\na host, without incorporating it into the computation process.\nThis limitation restricts the potential for extending generality\nin these systems.\nTo address the aforementioned issues, this article presents\na versatile compilation framework built upon the RISC-V\nCPU and NPU co-computing architecture. This framework\nis designed to efﬁciently map algorithms to heterogeneous\narchitectures. As illustrated in Fig. 1, it accepts a pruned\nand quantized ONNX format ﬁle as input, and integrates a\ncustom CNN compiler with the open-source ONNX-MLIR\ntoolchain. Following this, decision-making processes and\nvarious optimization techniques are applied to generate the\ncorresponding RISC-V instruction set architecture (ISA) and\nNPU ISA for implementation on the heterogeneous archi-\ntecture. The main contributions of this work include the\nfollowing.\n1) By extending the ONNX-MLIR framework with custom\noperators, we introduce an operator packing technique\nthat maximizes the computational efﬁciency of NPUs,\nwhile minimizing overhead during transitions between\nheterogeneous operations.\n2) A task scheduler with three operational modes is\ndeveloped, allowing users to customize the task dis-\ntribution according to speciﬁc requirements, including\ncorrectness veriﬁcation, performance optimization, or\ndetailed analysis of computational workﬂows across\nFig. 1.\nIllustration of the heterogeneous compilation framework and its\ninterfaces toward external tools, with details on the components extended for\nthe generation of heterogeneous instructions.\nheterogeneous platforms, which typically emphasizes\nthe versatility of the framework.\n3) The discrete memory allocation strategy is optimized to\naccommodate the CPU/NPU heterogeneous architecture,\nensuring seamless data access during cross-platform\ncomputations. To further enhance memory efﬁciency,\nthe memory management system incorporates two tech-\nniques: a dual-end (DE) allocation strategy with a\nself-check function, and a release-after-use (RU) mech-\nanism that minimizes memory footprint.\nThe remainder of the article is structured as follows. The\nrelated works are listed in Section II. In Section III, the\nbackgrounds of the framework are introduced; in Section IV,\nthe overview of our heterogeneous compilation framework\nis presented. Within ONNX-MLIR optimizations, including\noperator packing, algorithm adaption, and data coordination\nare presented in Section V. Section VI illustrates four func-\ntions to seamlessly integrate the heterogeneous compilation.\nThe thorough evaluation of the framework and technologies is\ndescribed and analyzed in Section VII, and the whole work is\nsummarized in Section VIII.\nII. RELATED WORKS\nThe rise of heterogeneous computing introduces signiﬁ-\ncant challenges in mapping workloads to diverse hardware\naccelerators, particularly under resource-constrained environ-\nments. Previous works have explored various partitioning and\noptimization strategies to efﬁciently allocate computations\nacross different processing units.\nTVM [16] is an open-source compiler framework that\napplies multilevel IR optimizations for deploying models on\nIEEE TRANSACTIONS ON COMPUTER-AIDED DESIGN OF INTEGRATED CIRCUITS AND SYSTEMS, VOL. 44, NO. 11, NOVEMBER 2025\nvarious hardware backends. Its abstraction layers, Relay and\nTIR, enable hardware-speciﬁc code generation but do not\nsupport cross-device collaboration. TensorRT, developed by\nNVIDIA, is widely used for GPU inference and applies\ngraph-level optimizations, such as layer fusion and precision\ncalibration. However, like TVM, it mainly targets single-\naccelerator deployment and lacks native support for CPU/NPU\ncooperative execution.\nCurzel et al. [14] introduced a compilation toolchain sim-\nilar to ONNX-MLIR but incorporate high-level synthesis\ntechniques on the backend to generate efﬁcient accelerators.\nThis approach provides an effective means of improving\nhardware efﬁciency by optimizing computation at the design\nstage. Liu et al. [13] presented a CPU/FPGA/NPU hetero-\ngeneous system for UAV applications, utilizing the uniﬁed\nprogramming language DPC++ [17] to streamline develop-\nment across diverse computing platforms. This demonstrates\nthe efﬁciency of heterogeneous architectures in specialized\nscenarios. Similarly, Qin et al. [12] introduced a CNN\nhardware accelerator within a RISC-V-based heterogeneous\nsystem, speciﬁcally designed for YOLOv3-Tiny. Their work\nshowcases a well-optimized hardware-software co-design for\ndeep learning inference. NEST-C [18] is a deep learning\ncompiler framework that enhances model deployment and\nperformance across AI accelerators. It employs proﬁling-based\nquantization, dynamic graph partitioning, and multilevel IR\nintegration for efﬁcient execution on heterogeneous hardware.\nAdditionally, it features PartitionTuner [19], an operator sched-\nuler that optimally distributes workloads across CPUs, NPUs,\nand other processing units to minimize inference time.\nOverall,\nthese\nworks\ncontribute\nsigniﬁcantly\nto\nthe\nﬁeld of heterogeneous computing by introducing effective\noptimization strategies, compilation techniques, and hardware-\nsoftware co-design methods. Building on these efforts, our\nwork focuses on a ﬂexible and generalizable framework\nthat leverages ONNX-MLIR’s multilevel dialect structure for\nefﬁcient task partitioning and resource management, enabling\nbroader applicability across various CNN models and hetero-\ngeneous computing scenarios.\nIII. PRELIMINARIES\nMapping CNNs to heterogeneous architectures involves\nleveraging two key techniques. First, ONNX-MLIR generates\nvalid instructions for CNN operators on RISC-V and produces\nintermediate representations at multiple levels, which enhances\nthe ability to manage various tasks effectively. Second, the\nRISC-V instruction extension plays a crucial role in enabling\nthe integration of heterogeneous instructions.\nA. ONNX-MLIR Toolchain\nONNX is a widely used standard that enables seamless AI\nmodel transfer between frameworks like PyTorch [20] and\nTensorFlow [21], facilitating efﬁcient transitions from research\nto production. Before deployment, models often undergo\noptimization techniques, such as pruning [22] and quanti-\nzation [23]. Researchers apply these optimizations across\ndifferent frameworks and export the reﬁned models in ONNX\nformat for implementation. Additionally, ONNX ﬁles are\nhighly readable and accessible via the “protoc” command or\nvisualization tools like “netron.”\nMLIR [24] is an extensible IR supporting various abstrac-\ntion\nlevels,\nfrom\nhigh-level\nalgorithmic\ndescriptions\nto\nlow-level instruction sets. It provides tools for static type\nchecking, code veriﬁcation, and optimization, ensuring efﬁ-\ncient target code generation. The ONNX-MLIR project\nincludes three dialect levels: 1) ONNX; 2) MLIR; and\n3) LLVM. With its mature I/O interfaces and ﬂexible IRs,\nwe use ONNX-MLIR as the foundation of our heterogeneous\ncompilation framework for mapping CNNs to RISC-V instruc-\ntions.\nAn ONNX ﬁle can be converted into the ONNX dialect,\nwhich offers high readability and aids in heterogeneous task\ndecisions. It separates constant inputs for each network layer,\nfacilitating parameter organization and optimization. Each\nrow represents a network layer, containing all necessary\ncomputation parameters, which are useful for both instruction\ngeneration and task assignment between CPU and NPU. The\nMLIR dialect expresses operations as loop-based computa-\ntions, enabling optimizations like tiling and unrolling [25].\nFinally, the LLVM dialect handles memory allocation and\nutilizes low-level “llvm” functions, making it well-suited for\naddress reassignment in heterogeneous architectures.\nB. RISC-V Instruction Extension\nIn the standard encoding format of RISC-V, there are\nthree “reserved” and four “custom” opcodes designated for\ninstruction extension, all preﬁxed with “11” (in bit 1:0 of\nthe instruction), effectively offering a signiﬁcant amount of\nencoding space. Additionally, there are three 30-bit instruction\nencoding spaces, preﬁxed with “00,” “01,” and “10,” available\nfor optional compressed instruction extensions. However, if\nthe compressed instruction set extension is not required, these\nthree 30-bit encoding spaces can be repurposed for uses.\nFor instance, the “00” preﬁx could be used for a set of\ncustom vector operations to support enhanced functionality\nwithout expanding beyond the 32-bit format. Similarly, the\n“01” preﬁx could be used for a different class of extended\ninstructions, such as specialized arithmetic operations. This\napproach maximizes the encoding capacity of the RISC-\nV architecture, providing ﬂexibility for advanced instruction\nextensions without the immediate need for the compressed\ninstruction sets.\nIV. OVERVIEW OF COMPILATION FRAMEWORK\nA. Overview\nFig. 2(a) provides the overview of our heterogeneous\ncompilation framework. To bridge the computational gap\nbetween heterogeneous platforms, we developed three phases\nwithin ONNX-MLIR:\n1) operator packing; 2) algorithm\nadaptation; and 3) data coordination. Additionally, we intro-\nduce four functions to integrate heterogeneous compilation\nplatforms, including task scheduling, weight quantization,\nweight rearrangement, and memory management. Importantly,\nour framework considers hardware resource constraints and\nCAO et al.: HETEROGENEOUS CNN COMPILATION FRAMEWORK\n(a)\n(b)\n(c)\nFig. 2.\nOverview of heterogeneous compilation framework. (a) Workﬂow of our compilation framework. (b) Workﬂow of our previous NPU compiler,\nincluding translation, optimization, and execution. (c) Illustration of the MLIR.\nTABLE I\nHARDWARE AND SOFTWARE CONFIGURATION INPUT SUPPORTED\nBY THE COMPILATION FRAMEWORK\nincludes dynamic quantization at the software level, as detailed\nin Table I, which allows for high conﬁgurability.\nThe task scheduler takes the ONNX dialect as input,\npartitions tasks between the CPU and NPU based on hardware\nconstraints or other speciﬁc requirements. It then relays the\npartitioning results back to ONNX-MLIR for operator packing.\nAt the same time, the task scheduler outputs the NPU operators\nto the NPU compiler, enabling the mapping of these operators\nto NPU instructions.\nOperator packing involves grouping the partitioned oper-\nators into CPU and NPU functions, so that the instructions\nin the NPU functions can be subsequently replaced by\nthe corresponding NPU instructions. The NPU is not only\nconstrained by the types of operators it can compute but\nalso by the speciﬁc parameter limitations of each operator.\nFor example, many NPU architectures feature convolution\noperations with standard feature map (FM) sizes, which is\nnot required for CPUs. This difference necessitates algo-\nrithm adaptation between the two platforms. This approach\nnot only streamlines the data ﬂow between the CPU and\nNPU, but also facilitates more efﬁcient utilization of the\nNPU’s specialized capabilities. Although this adaptation intro-\nduces some computational overhead on the CPU side, it\nwill be shown that the beneﬁts far outweigh this minor\ncost.\nThe weight quantizer converts ﬂoating-point constants from\nthe NPU in the MLIR dialect into ﬁxed-point numbers based\non dynamic quantization parameters. The quantized data are\nthen combined with the layer parameters generated during the\noptimization phase of the CNN compiler to perform weight\nrearrangement, tailored to the hardware architecture. Finally,\nthe data is returned to the MLIR dialect and stored as “NPU\nconstants,” allowing us to retrieve the constant addresses for\neach layer during the generation phase.\nMoreover, performance considerations for the NPU archi-\ntecture result in differences in how FM data is stored between\nthe NPU and CPU. To address this, data coordination is inte-\ngrated within the MLIR dialect. Once this data is passed to the\nLLVM dialect, the memory manager uniﬁes the management\nof CPU and NPU data spaces, ensuring the correctness of data\naccess across layers while optimizing memory usage.\nTo ensure compatibility within a heterogeneous archi-\ntecture, each 512-bit NPU instruction must be split into\n18 individual 32-bit instructions in the RISC-V format. In\nthis conﬁguration, the “00” preﬁx is assigned to NPU-\nspeciﬁc instructions, while the “10” preﬁx indicates the ﬁnal\ninstruction in the sequence. This transformation enables the\nseamless integration of NPU instructions within the RISC-V\narchitecture.\nB. NPU Compiler\nThe NPU compiler in the heterrogeneous compiliation\nframework is based on our previous work [11], designed for\nthe NPU in [26]. The compilation process consists of three\nIEEE TRANSACTIONS ON COMPUTER-AIDED DESIGN OF INTEGRATED CIRCUITS AND SYSTEMS, VOL. 44, NO. 11, NOVEMBER 2025\nphases: 1) translation; 2) optimization; and 3) generation, as\nshown in Fig. 2(b).\nIn the translation phase, network layers are analyzed via\ntext matching and categorized into ﬁve operation types:\n1) convolution; 2) fully connected (FC) layers; 3) pooling;\n4) concatenation; and 5) element addition. The model is then\nconverted into an intermediate format [Format 2 in Fig. 2(c)],\ncontaining only essential parameters, such as operation types,\nlayer details, and special layer identiﬁers.\nDuring optimization, the network model is reorganized\nthrough techniques like layer fusion and splitting to better\nﬁt the accelerator. A compiler-level loop tiling method is\nintroduced to divide large layers into smaller ones, reducing\nstorage and memory access demands. Additionally, weight and\nbias data are reordered alongside layer splitting.\nIn the generation phase, the ﬁnal CNN representation, along\nwith weight and bias data, is produced for the accelerator.\nData is reordered per the accelerator’s requirements [27], and\nadditional parameters are computed. PE mask bits are also\ndeployed to support padding, stride, and dilation operations,\nenhancing accelerator versatility.\nC. GUI for Compilation Framework\nTo fully emphasize the versatility of our framework, we\nhave developed a graphical user interface (GUI) to enhance\nuser experience and meet on-demand needs. At the algorithmic\nlevel, our compilation framework supports a wide range\nof CNNs, including the Resnet series, VGG [28] series,\nMobileNet [29] series, and more. Additionally, users can fully\ncustomize all hardware conﬁgurations, as outlined in Table I.\nEspecially for quantization format, our architecture supports\na variety of data types for different backends. Depending on\nthe application scenario, users can specify whether the CPU\nshould compute in ﬂoating point or use the same data type as\nthe NPU. Furthermore, users can input the optimal ﬁxed-point\nparameters generated by the upper-level quantization platform\nthrough user-deﬁned conﬁgurations.\nBeyond the default task division strategy, where all NPU-\nimplementable operators are designated as NPU tasks, users\ncan opt for all-CPU computation to verify the correctness of\nNPU operations. In addition to this, users can manually specify\nthe division of tasks by entering a set of binary numbers: “0”\nfor CPU tasks and “1” for NPU tasks, making it easy to com-\npare the acceleration effects of different hardware platforms.\nThis functionality can also be achieved by modifying the\n“implementable operators,” which simpliﬁes the exploration of\nacceleration effects for speciﬁc classes of operators, including\nthe associated constraints.\nV. OPTIMIZATION WITHIN ONNX-MLIR\nBased on the architecture in Fig. 2, we have developed three\nphases within ONNX-MLIR to optimize dialects, enhancing\nthe convergence of heterogeneous platforms.\nA. Operator Packing\nA key technique for effectively leveraging the capabilities of\nNPUs is CNN operator packing within the MLIR framework.\nIn the MLIR ecosystem, CNN operator packing involves\nencapsulating multiple operations into composite ones, which\ncan be mapped more efﬁciently to NPU instructions. The\nprimary goal is to streamline the execution of CNN models by\nreplacing these packed operators with highly optimized NPU\ninstructions during inference. This approach reduces the over-\nhead associated with individual operations, and maximizes the\nparallelism and specialized capabilities of NPUs, signiﬁcantly\naccelerating inference times.\n1) Adding Custom Operators to the Framework: To ensure\neffective instruction substitutions, our custom operators should\nbe added to the ONNX-MLIR toolchain before completing the\noperator packing. This process necessitates careful considera-\ntion of the target dialects and their interaction [10].\nThe ﬁrst step in extending ONNX-MLIR is to deﬁne new\noperators within the ONNX dialect. This process involves\nspecifying the name, inputs, outputs, and attributes of the oper-\nator according to the existing ONNX schema. The operator\nmust then be registered with the ONNX dialect to ensure it\nis recognized and correctly parsed by the compiler. Once the\noperator is deﬁned in the ONNX dialect, the next step is to\nlower it to the MLIR dialect. It involves transforming the high-\nlevel operation into a form that can be optimized. Finally,\nthe operator is lowered to the LLVM dialect and the newly\nadded operator should be compatible with the LLVM backend,\nensuring that it can be compiled into efﬁcient machine code\nfor the target architecture.\nIn the proposed heterogeneous compilation framework, the\ninstruction generation for the NPU takes place outside of\nthe ONNX-MLIR toolchain. As a result, the packed operator\ndoes not need to characterize either the operator information\nor the parameter information within the operator. However,\nit is important to ensure that the input and output variable\ninformation is preserved to prevent optimization during dialect\ntransfer. Therefore, following the steps for adding new oper-\nators and considering our speciﬁc requirements, three new\noperators are added to the ONNX dialect.\n1) %L1\n=\n“onnx.I3O1OfNPU”(%L0,\n%w1,\n%b1)\nfunc_name\n=\n@I3O1OfNPU0\n:\n(tensor<*>,\ntensor<*>, tensor<*>) -> tensor<*>\n2) %L2\n=\n“onnx.I4O1OfNPU”(%L1,\n%w2,\n%b2,\n%L0) func_name = @I4O1OfNPU0 : (tensor<*>,\ntensor<*>, tensor<*>, tensor<*>) -> tensor<*>\n3) %L3\n=\n“onnx.I1O1OfNPU”(%L2)\nfunc_name\n=\n@I1O1OfNPU0 : (tensor<*>) -> tensor<*>.\nAs outlined above, we classify NPU operators into three\ntypes based on input and output count, with their optimization\nhandled within the CNN compiler. In ONNX-MLIR, particu-\nlarly at the MLIR and LLVM dialect stages, the key task is to\naccurately transmit the corresponding wrapper function names.\nThis enables correct recognition and use of the operators\nduring ﬁnal compilation, eliminating the need for further\noptimization in these stages. Delegating optimization to the\nCNN compiler simpliﬁes NPU integration and improves the\nefﬁciency and scalability of the deployment pipeline.\n2) Intermediate Steps in Operator Packing: Fig. 3 illus-\ntrates the intermediate steps involved in operator packing.\nTaking\nthe\nclassic\nMNIST\nnetwork\nas\nan\nexample,\nCAO et al.: HETEROGENEOUS CNN COMPILATION FRAMEWORK\n(a)\n(b)\n(c)\n(d)\nFig. 3.\nIntermediate steps in operator packing, mapping from CNN models to hardware. (a) Input computational graph of the MNIST network represented in\nONNX. (b) Lowering high-Level ONNX operations to the ONNX dialect in MLIR (simpliﬁed). (c) Format of the ONNX dialect after searching and operator\npacking. (d) Final distribution of operations across the CPU and NPU.\nFig. 3(a) shows the input computational graph of the model\nexpressed in ONNX. This graph consists of a sequence of\noperations, including Maxpool, Reshape, two instances of\ngeneral matrix multiplication (Gemm), ReLU, and Softmax.\nFig. 3(b) depicts the lowering process within the ONNX-\nMLIR compiler, where the high-level ONNX operations are\nmapped to the ONNX dialect in MLIR. In this intermediate\nrepresentation, the operations are expressed as function calls,\npreserving the structure of the original computational graph.\nThis step serves as the initial phase of the compilation process,\npreparing the operations for further optimization and eventual\ntranslation to hardware-speciﬁc dialects.\nAfter conducting a search and operator packing, certain\noperations, such as Gemm and ReLU, have been consolidated\ninto NPU functions (e.g., NPU0 and NPU1), as illustrated in\nFig 3(c). Other operations, including Maxpool and Reshape,\nhave been assigned into CPU functions. Following the\ndownward mapping process, these operations are ultimately\ndistributed across various processing units, encompassing both\nCPU and NPU, as illustrated in Fig 3(d). For instance, some\noperations are executed on the CPU (e.g., CPU0 and CPU1),\nwhile others are ofﬂoaded to the NPU. The system bus\nfacilitates communication between these processing units and\nmemory, ensuring efﬁcient data transfer and processing across\ndifferent hardware components.\n3) Packing Strategy: For operations intended to be exe-\ncuted on the CPU, adjacent operators are grouped together into\na single CPU function. This strategy minimizes the overhead\nrelated to function calls and data transfers between opera-\ntions, thereby enhancing computational efﬁciency [30]. By\nconsolidating CPU-bound operations, the framework ensures\nmore effective utilization of the resources on the CPU, which\nreduces the latency and improves the overall performance.\nFor operations intended for execution on the NPU, operator\npacking is to maximize the throughput of the NPU by aligning\nthe operations with its speciﬁc instructions. This packing strat-\negy takes into consideration the capacity of NPU to efﬁciently\nhandle composite operations. Three main combinations of\noperators are considered for NPU packing.\n1) CONV\n+\n(ReLU/LeakyReLU/MaxPool/Average-Pool/\nConcat): By packing these operations together, the NPU\ncan process them in a streamlined manner, minimizing\nthe need for intermediate data transfers and reloading of\noperands.\n2) CONV\n+\nAdd\n+\n(ReLU/LeakyReLU/MaxPool/\nAveragePool/Concat): When a convolutional operation\nis followed by an element-wise addition (Add) and\nthen an activation or pooling operation, combining\nthese steps into a single NPU function can signiﬁcantly\nimprove execution efﬁciency. This approach is especially\nadvantageous in layers that include residual connections,\nsuch as in ResNet [31] architectures, where the addition\noperations are commonly utilized.\n3) GEMM + (ReLU/LeakyReLU/Reshape/Flatten): Similar\nas Convolution, by grouping these operations, the NPU\ncan handle them as a single unit. This is essential\nfor maintaining high throughput in the dense layers of\nneural networks.\nThis operator packing strategy optimizes the use of com-\nputational resources across CPUs and NPUs while reducing\noverhead during transitions between operations. By aligning\nthe packing process with the instruction-level execution of the\nNPU, this approach maximizes hardware utilization, leading\nto faster inference times and more efﬁcient execution of neural\nnetworks on heterogeneous systems.\nB. Algorithm Adaption\nDespite their computational efﬁciency, NPUs often face\nhardware-speciﬁc limitations regarding the types of operations\nthey can perform and the parameters they support. These\nconstraints necessitate careful consideration when adapting\nalgorithms for integration with more ﬂexible CPU-based\nplatforms.\nFirst, on most NPUs, convolutional computations are opti-\nmized for FMs sizes that are powers of two (e.g., 32 ×\n16 × 16, 128 × 32 × 32). This limitation stems from the\ninternal architecture of NPU, which is designed to maximize\nparallelism and memory access efﬁciency when handling data\nIEEE TRANSACTIONS ON COMPUTER-AIDED DESIGN OF INTEGRATED CIRCUITS AND SYSTEMS, VOL. 44, NO. 11, NOVEMBER 2025\nFig. 4.\nData coordination in the MLIR dialect involves modifying the CPU’s FM storage order to match that of the NPU. This algorithm implements a\nﬁxed-point quantization of the input FM.\nof speciﬁc sizes. In contrast, CPUs do not impose such\nstrict limitations on FM sizes, allowing for greater ﬂexibility\nin executing convolutional operations. This discrepancy in\noperational parameters between NPUs and CPUs presents\na signiﬁcant challenge when attempting to deploy neural\nnetworks across heterogeneous platforms that incorporate both\ntypes of processors.\nOne effective strategy to address this challenge is to use the\npadding [32] and reshaping techniques to conform non-power-\nof-2 FMs to NPU-compatible sizes. This process involves\npadding the FMs with zeros or other values to expand their\ndimensions to the nearest power of 2, thus enabling efﬁcient\nprocessing on the NPU. Notably, padding is only required\nin the row and channel dimensions. After the processing is\ncomplete, any extraneous padding can be removed or adjusted\nto restore the original dimensions of the FM before transferring\nthe data back to the CPU or subsequent layers in the neural\nnetwork. To minimize additional design overheads, we modify\nCPU computations to align with NPU processing.\nSecond, heterogeneous platforms often face challenges with\ninconsistent accuracy. Typically, CPUs use double-precision\n(64-bit) ﬂoating-point arithmetic, whereas NPUs may utilize\nreduced precision formats, such as 16-bit or even 8-bit integer\nrepresentations [33]. This shift to lower precision on NPUs\ncan lead to rounding errors and diminished accuracy in com-\nputations, which may result in discrepancies when compared\nto the results produced by CPUs.\nAt the compiler level, there are two primary approaches to\naddress this issue. First, we can introduce inverse ﬁxed-point\nquantization operators before CPU functions and ﬁxed-point\nquantization operators after them. This process allows CPU\noperators to perform pseudo-ﬁxed-point computation, which\ncan enhance accuracy to some extent. Second, it is also\npossible to convert all CPU operators directly to ﬁxed-\npoint computation, which improves computational efﬁciency.\nHowever, certain operators in ONNX, such as Softmax, do\nnot support direct ﬁxed-point computation [34]. In these\ncases, the ﬁrst method becomes necessary. In our compilation\nframework, both methods are implemented, allowing users\nthe ﬂexibility to choose the approach that best suits their\napplication scenario.\nC. Data Coordination\nAside from the possible differences in FM sizes, the order\nin which the FMs are arranged may also vary. Typically, CPUs\nemploy row-major storage to optimize memory access patterns\nand enhance cache utilization. Conversely, NPUs often use\noptimized orders, such as channel-major or block-major to\nenhance parallel processing efﬁciency [35]. This difference in\nordering requires data rearrangement when it is transferred\nbetween the CPU and NPU, which increases the overhead\nof memory accesses and introduces additional latency, which\nultimately impacts the overall performance.\nVarious strategies have been proposed to optimize FM\nlayouts on heterogeneous platforms, including automatic lay-\nout transformation [16], hardware-aware neural architecture\nsearch [36], custom compiler passes, and so on. Given the high\ncost of altering hardware design, we have chosen to modify\nthe CPU’s FM storage order to align with that of the NPU.\nThe operation is translated into a loop-based computation in\nthe MLIR dialect, allowing for data coordination for CPU\noperators, as shown in Fig. 4. Our NPU platform employs\nthe channel-major computation, in which the order of the\nFMs is speciﬁed as [col, channel, row], requiring us to swap\nthe intra-CPU column dimension with the channel dimension.\nOur method effectively allows for seamless data coordination\nacross heterogeneous platforms with minimal code changes\nand negligible overhead, as illustrated in Fig. 4.\nVI. INTEGRATION OF HETEROGENEOUS\nCOMPILATION PLATFORM\nHeterogeneous compilation platforms vary in their inputs\nand outputs, optimization methods, memory allocation, and\nmore. To integrate these platforms seamlessly, we developed\nfour functions that focus on task scheduling, weight quantizer,\nweight reorderer, and memory management across both plat-\nforms.\nA. Task Scheduler\nIn the task scheduling strategy for heterogeneous systems,\nthree modes are provided, as outlined in Algorithm 1, to\nmanage the assignment of operations between the CPU and\nthe NPU according to the user-speciﬁc requirements.\n1) All_CPU Mode: In certain situations, users may wish\nto verify the correctness of the computations performed on the\nNPU by comparing them with results obtained from the CPU.\nTo facilitate this, the algorithm offers an ALL_CPU mode,\nwhich forces all tasks to be executed on the CPU, regardless of\ntheir compatibility with the NPU. This approach guarantees a\nconsistent computational environment for accuracy validation.\nCAO et al.: HETEROGENEOUS CNN COMPILATION FRAMEWORK\nAlgorithm 1 Task Scheduling of CPU/NPU Operators\nInput: CM: calculation mode, OD: ONNX dialect, NO:\nnumber of operators, (TD: task designation, NR: NPU\nrestrictions);\nOutput: TC: task of CPU, TN: task of NPU;\n1: for each i ∈[1, NO] do\n2:\nif CM == ALL_CPU then\n3:\nAdd current operator to TC\n4:\nelse if CM == USER_DEFINE then\n5:\nif TD[i] == cpu then\n6:\nAdd current operator to TC\n7:\nelse if TD[i] == npu then\n8:\nAdd current operator to TN\n9:\nend if\n10:\nelse if CM == DEFAULT then\n11:\nif OD[i] meets NR then\n12:\nAdd current operator to TN\n13:\nelse\n14:\nAdd current operator to TC\n15:\nend if\n16:\nend if\n17: end for\n18: return TC, TN\n2) USER_DEFINE Mode: For advanced users seeking\nmanual control over task distribution between the CPU and\nNPU, the scheduler supports a USER_DEFINE mode. In this\nmode, users can specify a binary string for task designation\n(denoted as TD), where each bit indicates the assignment of an\noperator: “0” for CPU and “1” for NPU. This feature allows\nusers to experiment with various conﬁgurations, enabling the\nevaluation of the hardware platform in acceleration capabilities\nand a thorough comparison of performance between the CPU\nand NPU.\n3) DEFAULT Mode: By default, the scheduler assigns\ntasks based on the capabilities of the NPU. It checks whether\neach operation meets the NPU’s restrictions. If an operator is\ncompatible with the NPU, it is added to the NPU task list\n(TN). Otherwise, it is assigned to the CPU task list (TC). This\nstrategy optimizes performance by leveraging the calculation\ncapacity of NPUs for suitable tasks.\nIn this mode, the scheduler allows users to modify the\nlist of “implementable operators” that determines which tasks\ncan be processed by the NPU. By adjusting these settings,\nusers can explore the performance impact of speciﬁc classes\nof operations on the NPU, while considering any associated\nconstraints. This level of customization is especially valuable\nfor researchers and engineers seeking to optimize speciﬁc\ncomputational workloads.\nThe algorithm begins by iterating over all operators from the\nONNX dialect (OD). Depending on the selected calculation\nmode (CM), it applies the appropriate task assignment logic.\nOnce all operators are processed, the algorithm returns two\nlists, TC, representing the tasks allocated to the CPU, and TD,\nrepresenting the tasks allocated to the NPU. This structured\nand ﬂexible approach allows users to tailor task distribution\nbased on their speciﬁc needs, whether it involves correctness\nveriﬁcation, performance optimization, or in-depth analysis of\ncomputational workﬂows on heterogeneous platforms.\nB. Weight Quantizer and Reorderer\nThe weight quantizer and reorderer are fundamental com-\nponents in the optimization pipeline for deploying CNNs on\nNPUs. This process ensures that the weight parameters of\nneural networks are efﬁciently formatted and optimized for\nthe speciﬁc hardware architecture of the NPU, enhancing\nperformance and reducing computational overhead. On top of\nthat, if ﬁxed-point computation is to be performed on the CPU,\nthe weights must also be quantized. The overall process can\nbe divided into several key stages.\n1) Weight Quantization: The ﬁrst step involves the weight\nquantizer, which converts ﬂoating-point constant data in the\nMLIR dialect into ﬁxed-point data. This conversion applies to\nboth NPU operators and CPU operators that require ﬁxed-point\ncomputation. The conversion process is guided by dynamic\nquantization parameters, which are determined based on the\nstatistical properties of the data from the upper quantization\nplatform. Dynamic quantization [37] enables adaptive scaling\nof weights, ensuring that the ﬁxed-point representation pre-\nserves the necessary precision while minimizing quantization\nerrors.\n2) Integration With NPU Optimized Layer Parameters:\nAfter quantization, the next step is to integrate the quan-\ntized data with the layer parameters produced during the\noptimization phase of the compiler. This phase introduces\ncompiler-level loop tiling, which may result in a different\nnumber of layers and associated parameters compared to the\noriginal network. The rearrangement of weights [11] is tailored\nto the speciﬁc architecture of the NPU, ensuring that the\nweights are organized in a manner that maximizes memory\naccess efﬁciency and computational throughput.\n3) Storing Quantized and Rearranged Weights: After quan-\ntization and rearrangement, the processed weight data is\nconverted back into the MLIR dialect. This step ensures\nthat the data remains within a standardized and ﬂexible\nintermediate representation, which is compatible with the\nsubsequent stages of the compilation and deployment pipeline.\nThe quantized and rearranged weights are stored as “NPU\nconstants,” making it easier to retrieve their memory addresses\nduring the generation phase of the compilation process.\nC. Memory Manager\nHeterogeneous architectures that involve both CPUs and\nNPUs present complex challenges in memory allocation.\nOn the software side, CPUs utilize well-established memory\nallocation mechanisms, such as the stack, which operates as a\nlast-in, ﬁrst-out (LIFO) data structure [38]. On the hardware\nside, there are two common memory optimization methods,\nincluding the DE and RU mechanisms.\nThe DE mechanism [39] traverses the overall storage space\nof the input FM data and output FM data across all layers, and\nthen sets the maximum value as the current FM storage space.\nThis method is particularly effective for networks without\nIEEE TRANSACTIONS ON COMPUTER-AIDED DESIGN OF INTEGRATED CIRCUITS AND SYSTEMS, VOL. 44, NO. 11, NOVEMBER 2025\n(a)\n(b)\nFig. 5.\nCommon NPU memory optimization methods. (a) Bottleneck\nof ResNet50 (Stage 1 BTNK 2, original input FM size is 224×224×3);\n(b) read-write conﬂicts in DE memory management mechanism; (c) memory\nmanagement mechanism for RU.\nbranches or for architectures utilizing in-place algorithms to\nminimize memory usage. However, in certain architectures\nwith read-write concurrency or in networks with branches,\nthis approach can lead to read-write conﬂicts. For example,\nin Fig. 5(a), the bottleneck (Stage 1 BTNK 2) of Resnet50 is\npresented with an original input FM size of 224 ×224 ×3.\nFig. 5(b) illustrates the corresponding DE mechanism. At\nthe end of the NPU2 calculation, the output FM of NPU1\nis released. However, while calculating NPU3, a read-write\nconﬂict occurs due to insufﬁcient setup space, resulting in an\nerror in the result of NPU3.\nTo address the above issue, we designed a self-check\nfunction to simulate memory allocation and adjust initial\nmemory sizes upon data conﬂicts. Additionally, we intro-\nduced the RU mechanism [Fig. 5(c)], which, unlike the DE\nmechanism, avoids precomputing memory size or using self-\nchecks. It releases memory only after conﬁrming that no\nfuture operations require a speciﬁc layer’s FM. For example,\nin Fig. 5(c), NPU1 allocates memory for its output, while\nNPU0’s memory remains reserved due to dependencies from\nNPU3. Memory is released only after all related computations\nare complete, preventing data conﬂicts and ensuring reliable\nmemory management.\nIn a CPU/NPU heterogeneous system, memory allocation\ncan generally be categorized into two types: 1) uniﬁed memory\nand 2) discrete memory. Uniﬁed memory allows both the\nCPU and NPU to access a shared memory space, simplifying\nthe programming model by eliminating the need for explicit\ndata transfers between the CPU and NPU. However, this\nmodel may introduce challenges related to memory bandwidth\nand contention, as both processors compete for the same\nresources. In contrast, discrete memory allocation assigns\nAlgorithm 2 Memory Management of SW/HW Operators\nInput: network_nodes, START_HW: start address of hardware,\nMECH: mechanism of memory allocation\nOutput: nodes_raddr: read address of nodes, nodes_waddr: write\naddress of nodes\n1: Initialization: fmSet, DE_END: end address of the DE mecha-\nnism, RU_END: end address of the RU mechanism\n2: //determine the ofm of the memory to be allocated;\n3: for node in network_nodes do\n4:\nif node.type = SW then\n5:\nif nextnode.type = HW then\n6:\nfmSet.insert(node)\n7:\nend if\n8:\nelse if node.type = HW && node.input = ori_FM then\n9:\nfmSet.insert(ori_FM)\n10:\nelse if node.type = HW then\n11:\nfmSet.insert(node)\n12:\nend if\n13: end for\n14: //two memory allocation mechanisms (optional);\n15: if MECH = RU then\n16:\nnodes_waddr, RU_END = fmSet.RU(START_HW)\n17: else\n18:\n//self-checking for dual-end mechanism;\n19:\nDE_END = max(fmSet.ifm + fmSet.ofm)\n20:\nDE_END = fmSet.self_check(DE_END)\n21:\nnodes_waddr = fmSet.DE(DE_END, START_HW)\n22: end if\n23: for node in network_nodes do\n24:\nif (node.type = SW && prenode.type = HW) ∥(node.type =\nHW) then\n25:\nnodes_raddr = nodes_waddr.ﬁnd(node.ifm)\n26:\nend if\n27: end for\n28: return nodes_raddr, nodes_waddr\nseparate memory spaces for the CPU and NPU. While this\napproach can be more complex to manage because it requires\nexplicit data transfers between the memory of CPU and the\nmemory of NPU, it can offer more control.\nIn our work, we chose to use discrete memory allocation.\nAlgorithm 2 outlines the memory management process of\nhardware/software (HW/SW) operators. The memory manager\ntakes as input a set of nodes and the start address of the\nNPU memory (START_HW), and it outputs the read and write\naddresses of these nodes. It is noteworthy that only the last\nlayer of CPU and all NPU operators require memory allocation\n(or FM that inputs to NPU directly). This means that all FMs\nneeded by the NPU, both input and output, are allocated within\nthe NPU address segment. As a result, the read address of the\nﬁrst operator in the CPU function and the write address of the\nlast operator are explicitly deﬁned. In the LLVM dialect, we\ncreated a malloc_NPU function to enable the CPU to access\nthe NPU address segment.\nVII. EXPERIMENT AND EVALUATION\nTo validate the effectiveness of the proposed heterogeneous\ncompilation framework, a series of experiments are conducted,\nfocusing on versatility, speed up, and memory efﬁciency. The\nexperimental setup is as follows.\nSoftware Implementation: Our heterogeneous compilation\nframework is based on the ONNX-MLIR toolchain, and the\nCAO et al.: HETEROGENEOUS CNN COMPILATION FRAMEWORK\nTABLE II\nIMPLEMENTATION RESULTS OF THE PROPOSED HETEROGENEOUS COMPILATION FRAMEWORK COMPARED WITH STATE-OF-THE-ART COMPILERS\nimplementation of heterogeneous expansion, including the\nCNN compiler, is carried out using Python 3. The trained\nmodels in the ONNX format and various HW/SW settings are\ntaken as input. The output is divided into two parts: 1) the\ngenerated heterogeneous instructions as a hex ﬁle and 2) the\noriginal CPU parameters, along with the rearranged network\nparameters for NPU, stored as a binary ﬁle in DDR.\nHardware Platforms: The heterogeneous hardware archi-\ntecture is composed of a RISC-V CPU and a self-developed\nNPU. We choose the RV32IM instruction set for the RISC-V\nCPU, which features an 8 KB L1 cache. The NPU is\nimplemented by SMIC 40 nm CMOS technology, working\nat the clock frequency of 200 MHz. It supports commonly\nused operations in CNNs, such as convolution, FC, pooling,\netc. To comprehensively evaluate performance, we compare\nour results with state-of-the-art studies to measure network\ninference latency.\nNetwork Benchmarks: To evaluate the compilation frame-\nwork across various CNN networks, it is important to cover\ndifferent operators and architectures. For depth-based design,\nVGG and ResNet are classic models. VGG uses a straight-\nforward stack of 3 ×3 convolutions [28], while ResNet\nintroduces residual connections to address the vanishing gra-\ndient problem [31]. RepVGG [40] builds on VGG’s simplicity\nwith a reparameterization technique that improves infer-\nence efﬁciency while preserving model depth. For multiscale\ndesign, YOLO [41] supports multiscale detection, and its tiny\nversion is smaller, faster, and ideal for real-time tasks on\nresource-limited devices. To further demonstrate the generality\nof our framework, we also include a typical deep neural\nnetwork (DNN), MNIST, which features the widely-used\nGemm operator.\nA. Performance Evaluation\nAs mainstream frameworks, such as TVM and TensorRT do\nnot support our heterogeneous hardware or report comparable\nmetrics, we instead compare our method with representative\nworks [12], [13], [14], [18] that share similar architectural\nassumptions or compilation goals. We note that the reference\nworks used for comparison do not provide explicit data\non code density, or heterogeneous memory usage, which\nlimits the scope of metric-level comparison. Therefore, our\nevaluation focuses on the implementation structure, and exe-\ncution efﬁciency of these frameworks. Table II presents the\nimplementation results of various CNNs across different archi-\ntectures, comparing their performance and resource utilization\nmetrics. While the table highlights speciﬁc CNNs, such as\nYOLOv3-Tiny, YOLOv5s, ResNet50, and MNIST, it is impor-\ntant to note that the proposed compilation framework is not\nrestricted to these models. It is designed to support a wide\nrange of CNNs, showcasing its general-purpose capability in\nhandling diverse neural networks.\nOur architecture, which is based on the RISC-V RV32IM\nCPU and a custom NPU, supports multiple CNNs, as shown\nin the results presented in the rightmost column. The NPU is\ncapable of executing all the operators from these networks,\nwhile the CPU primarily handles instruction recognition and\ndistribution. This design signiﬁcantly reduces network latency,\nresulting in excellent performance. The architecture is ver-\nsatile, supporting model execution with both high and low\nprecision (from 32-bit to 8-bit) while maintaining consistent\nperformance levels. For instance, when deploying YOLOv3\nand ResNet50, we achieve competitive performance with\n8-bit quantization, allowing for reduced memory footprint\nand improved computational efﬁciency without signiﬁcantly\nsacriﬁcing accuracy. This ﬂexibility in precision allows the\narchitecture to adapt to various deployment requirements, from\nhigh-accuracy models, such as ResNet50, to more lightweight,\nreal-time models, such as YOLOv3-Tiny. It is worth noting\nthat the operators executed on the CPU maintain a 32-bit\nprecision to ensure computational accuracy. Therefore, latency\ncomparisons are made while accounting for any additional\ndelays introduced by high-precision processing on the CPU,\nwhere applicable.\nIn comparison to other architectures listed in the table,\nsuch as the extended SODA synthesizer in [14], our archi-\ntecture excels in delivering lower memory footprints (e.g.,\n24.4 MB for ResNet50 compared to 97.7 MB in [14]) and\nreduced latency (e.g., 56.7 ms for ResNet50 compared to\n1614.8 ms in [14]) even converted to 32-bit precision. At\nthe same time, our latency is also 11.2× faster than that\nIEEE TRANSACTIONS ON COMPUTER-AIDED DESIGN OF INTEGRATED CIRCUITS AND SYSTEMS, VOL. 44, NO. 11, NOVEMBER 2025\nFig. 6.\nComparison of code density and inference time for task scheduler evaluation. (a) Code density comparison in the USER_DEFINE mode. (b) Inference\ntime comparison in the USER_DEFINE mode. (c) Code density comparison in the DEFAULT mode. (d) Inference time comparison in the DEFAULT mode.\nin [18] at the same precision and low frequency. Regarding\nYOLOv3-Tiny, while [12] adopts 32-bit numerical precision,\nour implementation in 8-bit quantization achieves a latency of\nmore than one-fourth of theirs. This discrepancy arises because\nthe accelerator in [12] is speciﬁcally designed for YOLOv3-\nTiny, and our implementation involves data transformation on\nthe CPU with 32-bit precision. Consequently, the ﬁnal latency\naligns with expectations. Finally, MNIST, as a representative\nDNN, is also included in our evaluation. However, the speedup\nis not particularly signiﬁcant, as only the Gemm and ReLU\noperators can be ofﬂoaded to the NPU for computation.\nHowever, our architecture is capable of supporting the full\nrange of DNN computations.\nIt is worth noting that the compilation time in our framework\nis on the order of minutes, as it involves multilevel dialect\noptimizations and complex ﬁxed-point quantization and rear-\nrangement of weights. However, in practical scenarios, this\noverhead is negligible since precompilation does not impact\nthe runtime computational efﬁciency.\nB. Task Scheduler Evaluation\nIn the task scheduling strategy, we offer three modes to\nmanage the assignment of operations between the CPU and\nthe NPU based on user-speciﬁc requirements. The efﬁciency\nof each mode is veriﬁed as shown in Fig. 6. The experiments\nfocus on two metrics: 1) code density and 2) inference time.\nThese metrics are unaffected by memory management because\nmemory allocation follows a ﬁxed strategy throughout task\nscheduling experiments. Hence, the differences observed in\ntask scheduling conﬁgurations can be attributed solely to\nscheduling strategies.\nAll_CPU Mode: In this mode, we run YOLOv3-Tiny with\nan input size of 224 × 224 × 3 (in 8-bit), and observed an\nextraordinarily high cycle count of 277 billion cycles. One\nreason for this high cycle count may be that the RV32IM ISA\nlacks the specialized hardware extensions needed for efﬁcient\ndeep learning workloads. Many modern architectures leverage\nsingle instruction, multiple data (SIMD), vector operations, or\ndedicated accelerators to speed up the matrix multiplications\nand convolutions, which are common in deep learning tasks.\nSince the RV32IM ISA does not include these features, the\nprocessor likely needs to execute more instructions to achieve\nthe same results, further contributing to the high cycle count.\nSecond, a small cache can lead to frequent misses, forcing\nthe processor to access slower main memory more often.\nYOLOv3-Tiny involves many convolutions that repeatedly\naccess input features, weights, and intermediate results. If the\ncache is too small to hold this data across layers, the CPU\nspends more time waiting on memory, increasing the cycle\ncount.\nBased on the above analysis, there are two key approaches\nfor our architecture to enhance the CPU inference speed. First,\nwe can customize the instruction set for deep learning tasks;\nsecond, a larger cache is needed. Additionally, we tested the\nnetwork with an input size of 224 × 256 × 3 to simulate\npadding in cols operation mentioned in Section V-B, which\ntakes around 278 billion cycles, very close to the time taken\nwithout padding. This indicates that the additional overhead\nof the CPU to accommodate NPU computation is negligible.\nUSER_DEFINE Mode: In this mode, we tested how\ndividing tasks affects performance, to illustrate the feasibility\nof this mode. Fig. 6(a) and (b) provides a detailed comparison\nCAO et al.: HETEROGENEOUS CNN COMPILATION FRAMEWORK\nof code density and inference time across four different CNN\nmodels. Code density is chosen as a key metric because it\naffects storage efﬁciency, power consumption, and execution\nperformance. Lower code density reduces memory usage,\nlowers power by minimizing accesses, and improves efﬁciency\nby requiring fewer instructions. Each model is evaluated\nunder ﬁve scenarios, representing varying proportions of tasks\nofﬂoaded to the NPU, denoted by O_P, ranging from 0 (no\nofﬂoading) to 1 (complete ofﬂoading).\nThe results indicate a clear trend: as the proportion of tasks\nofﬂoaded to the NPU increases, the code density and inference\ntime decrease. For each network, the highest code density\nand inference time occurs when no tasks are ofﬂoaded (O_P\n= 0), with signiﬁcant reductions noted as more tasks are\nofﬂoaded to the NPU. Notably, YOLOv3 exhibits the highest\ncode density across all tested models, starting from over 30 000\nlines in the baseline case. At the same time, due to RISC-V’s\ncomputational inefﬁciency, it also has the highest latency at\nO_P = 0, up to 13 234 ms. As the ofﬂoading proportion\nincreases, there is a signiﬁcant decline in code density and\ninference time, highlighting the potential efﬁciency gains.\nResNet50 and ResNet34 exhibit a similar trend, they have\nlower overall code densities and inference time compared to\nYOLOv3. YOLOv3-Tiny also shows a decrease in code den-\nsity and inference time, but the reduction is less pronounced\ncompared to that of the full YOLOv3 model. This suggests\nthat larger and more complex networks experience greater\nbeneﬁts from the tasks ofﬂoading. Overall, this ﬁgure under-\nscores the effectiveness of task ofﬂoading in reducing code\ndensity and inference time, which is a critical factor in opti-\nmizing computational performance on resource-constrained\nplatforms.\nDEFAULT Mode: In this mode, we evaluated the impact\nof ofﬂoading different types of operators to the NPU on the\ncode density and inference time of various CNN models. As\nshown in Fig. 6(c) and (d), 1 × 1 convolutions, 3 × 3 con-\nvolutions, and convolutions with following element-additions\nare ofﬂoaded to the NPU, repectively. ResNet50 and ResNet34\nexhibit a similar trend in code density and inference time\nreduction. They start with a relatively high code density and\ninference time on the CPU, which decreases consistently as\nmore operations are ofﬂoaded. The most pronounced reduction\noccurs when 3 × 3 convolutions are ofﬂoaded, indicating\ntheir computational intensity. This trend is particularly notable\nin ResNet34, which contains a greater number of 3 × 3\nconvolutions than 1 × 1 convolutions. YOLOv3 shows the\nhighest code density and inference time in the all_CPU mode\nbut experiences substantial beneﬁts from separately ofﬂoading\nboth 1 × 1 and 3 × 3 convolutions. YOLOv3-Tiny, as a more\nlightly weighted model, also displays a reduction pattern simi-\nlar to the larger networks, despite having an overall lower code\ndensity and inference time. Since this model does not have an\nelement-addition layer, ofﬂoading the Conv+Add operations\nis useless. Overall, this analysis underscores the efﬁciency\ngains achieved by selectively ofﬂoading speciﬁc types of\noperators to the NPU, particularly highlighting the advantages\nfor in-depth examinations of heterogeneous computational\nplatforms.\nFig. 7.\nComparison of FM memory usage across different NPU memory\nallocation strategies. (* indicates that the self-checking function in the DE\nmechanism is active).\nC. Memory Efﬁciency Evaluation\nTo evaluate the independent impact of memory management\nstrategies, we conduct all experiments in the ALL_NPU\nmode to eliminate interference from task scheduling. We\ncompare three memory allocation mechanisms implemented\nin the NPU: 1) DE; 2) RU; and 3) sequential storage (SS).\nSince task scheduling is ﬁxed in this mode, variations in\nmemory usage reﬂect purely the contribution of memory\nmanagement strategies. The experiments aimes to assess the\nmemory consumption of FMs (the input FM size is 224 ×\n224×3) across different mechanisms, with results summarized\nin Fig. 7.\nAmong the three mechanisms, SS consumes the most\nmemory across all models. For instance, ResNet50 and\nYOLOv3 have memory demands of 11.00 MB and 12.51 MB,\nrespectively, while VGG16 requires 9.99 MB when using SS.\nThis is because SS stores all intermediate results without any\nreuse or optimization. In addition to this, this mechanism leads\nto a direct link between memory and model size, with large\ngaps in memory between different models. For example, in\nthe tested models, the minimum FM memory size is 1.14 MB,\nwhile the maximum reaches 12.51 MB.\nThe RU mechanism shows a notable reduction in memory\nusage compared to SS. Speciﬁcally, memory usage for\nResNet50 decreases from 11.00 MB (SS) to 2.41 MB (RU),\nwhile YOLOv3 shows a reduction from 12.51 MB (SS) to\n2.84 MB (RU). However, although RU improves efﬁciency, it\nstill consumes more memory than DE, as it reuses allocated\nmemory less aggressively in some models.\nDE stands out as the most efﬁcient memory allocation\nmechanism, reducing memory consumption to minimal levels.\nFor example, ResNet50 requires only 1.97 MB, achieving a\n5.58× reduction compared to SS. The DE mechanism dynam-\nically releases memory that is no longer required for future\noperations, leading to a signiﬁcant decrease in FM memory\nusage. In addition, the self-checking function discussed in\nSection VI-C has been validated in ResNet34 and ResNet50,\nas the original memory allocation in the DE mechanism may\nnot be sufﬁcient for models with branching paths.\nUsing either DE or RU mechanisms, the difference in FM\nmemory required between the different networks is much\nIEEE TRANSACTIONS ON COMPUTER-AIDED DESIGN OF INTEGRATED CIRCUITS AND SYSTEMS, VOL. 44, NO. 11, NOVEMBER 2025\nsmaller, generally under 5 MB. The optimization results for\nthese two mechanisms show little variation, and in some cases,\nsuch as ResNet34 and YOLOv3-Tiny, their effects are virtually\nidentical. Therefore, to simplify the compilation process, users\ncan opt for the more straightforward RU mechanism.\nVIII. CONCLUSION AND FUTURE WORKS\nIn this article, we propose a compilation framework based\non RISC-V CPU/NPU co-computing to address the challenge\nof mapping and compiling from algorithms to heterogeneous\narchitectures. By integrating custom operator packing, a ver-\nsatile task scheduler, and optimized memory management, the\nproposed framework signiﬁcantly enhances the efﬁciency and\nperformance of heterogeneous architectures. Our experimental\nresults demonstrate that the framework can effectively gen-\nerate optimized instructions for various models, signiﬁcantly\nenhancing the efﬁciency and performance of heterogeneous\narchitectures. It achieves up to a 7.06× reduction in code\ndensity and up to a 5.58× improvement in memory usage,\nbridging the computational gap between CPUs and NPUs.\nMoving forward, we could explore the integration of more\nadvanced machine learning models, such as transformers, and\ntheir adaptation to more heterogeneous architectures. This will\nbe part of our future work.",
+  "text_length": 62826,
+  "csv_matched": true,
+  "extraction_status": "success"
+}
+exec
+/usr/bin/zsh -lc 'python /root/opencute/workspace/survey/skill/codex/paper-json-review/scripts/preflight_review.py --analysis-json /root/opencute/workspace/survey/data/topics/cpu-ai/corpus/llm/glm5.1/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json --paper-json /root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json --pretty' in /root/opencute/workspace/survey
+ succeeded in 689ms:
+{
+  "analysis_json_path": "/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/llm/glm5.1/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json",
+  "paper_json_path": "/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json",
+  "resolved_paper_by": "explicit_path",
+  "analysis_title": "一种基于ONNX-MLIR的面向RISC-V CPU与NPU集成的异构CNN编译框架",
+  "paper_title": "A Heterogeneous CNN Compilation Framework for RISC-V CPU and NPU Integration Based on ONNX-MLIR",
+  "statuses": {
+    "schema": "pass",
+    "metadata": "fail",
+    "taxonomy": "pass",
+    "evidence": "mixed",
+    "numeric": "mixed",
+    "format": "pass"
+  },
+  "summary": {
+    "issue_count": 6,
+    "critical_count": 1,
+    "major_count": 1,
+    "minor_count": 4,
+    "matched_evidence_quotes": 4,
+    "total_evidence_quotes": 7,
+    "matched_numeric_claims": 23,
+    "total_numeric_claims": 25
+  },
+  "metadata_checks": [
+    {
+      "field": "title",
+      "status": "fail",
+      "analysis_value": "一种基于ONNX-MLIR的面向RISC-V CPU与NPU集成的异构CNN编译框架",
+      "paper_value": "A Heterogeneous CNN Compilation Framework for RISC-V CPU and NPU Integration Based on ONNX-MLIR"
+    },
+    {
+      "field": "authors",
+      "status": "partial",
+      "analysis_value": "Shan Cao, Meiling Yang, Yintao Liu, Yu Li, Beining Zhao, Xinyu Chen, Zhiyuan Jiang",
+      "paper_value": "Shan Cao"
+    },
+    {
+      "field": "year",
+      "status": "pass",
+      "analysis_value": 2025,
+      "paper_value": 2025
+    },
+    {
+      "field": "venue",
+      "status": "pass",
+      "analysis_value": "IEEE-TCAD",
+      "paper_value": "IEEE-TCAD"
+    },
+    {
+      "field": "doi",
+      "status": "pass",
+      "analysis_value": "10.1109/TCAD.2025.3564561",
+      "paper_value": "10.1109/TCAD.2025.3564561"
+    }
+  ],
+  "shape_checks": [
+    {
+      "field": "title",
+      "status": "pass",
+      "expected_type": "str",
+      "actual_type": "str"
+    },
+    {
+      "field": "authors",
+      "status": "pass",
+      "expected_type": "str",
+      "actual_type": "str"
+    },
+    {
+      "field": "year",
+      "status": "pass",
+      "expected_type": "int",
+      "actual_type": "int"
+    },
+    {
+      "field": "venue",
+      "status": "pass",
+      "expected_type": "str",
+      "actual_type": "str"
+    },
+    {
+      "field": "doi",
+      "status": "pass",
+      "expected_type": "str",
+      "actual_type": "str"
+    },
+    {
+      "field": "research_purpose",
+      "status": "pass",
+      "expected_type": "str",
+      "actual_type": "str"
+    },
+    {
+      "field": "research_significance",
+      "status": "pass",
+      "expected_type": "str",
+      "actual_type": "str"
+    },
+    {
+      "field": "contributions",
+      "status": "pass",
+      "expected_type": "list",
+      "actual_type": "list"
+    },
+    {
+      "field": "theme_primary",
+      "status": "pass",
+      "expected_type": "str",
+      "actual_type": "str"
+    },
+    {
+      "field": "workstream_fit",
+      "status": "pass",
+      "expected_type": "str",
+      "actual_type": "str"
+    },
+    {
+      "field": "is_close_baseline_to_cute",
+      "status": "pass",
+      "expected_type": "bool",
+      "actual_type": "bool"
+    },
+    {
+      "field": "key_technique",
+      "status": "pass",
+      "expected_type": "str",
+      "actual_type": "str"
+    },
+    {
+      "field": "key_results",
+      "status": "pass",
+      "expected_type": "str",
+      "actual_type": "str"
+    },
+    {
+      "field": "gap_identified",
+      "status": "pass",
+      "expected_type": "list",
+      "actual_type": "list"
+    },
+    {
+      "field": "proposal_evidence",
+      "status": "pass",
+      "expected_type": "dict",
+      "actual_type": "dict"
+    },
+    {
+      "field": "theme_secondary",
+      "status": "pass",
+      "expected_type": "str|null",
+      "actual_type": "str"
+    }
+  ],
+  "evidence_checks": [
+    {
+      "field": "contributions[0].evidence",
+      "status": "pass",
+      "match_type": "exact"
+    },
+    {
+      "field": "contributions[1].evidence",
+      "status": "partial",
+      "match_type": "near_match",
+      "best_match_ratio": 0.948,
+      "best_match_sentence": "2) A task scheduler with three operational modes is developed, allowing users to customize the task distribution according to specific requirements, including correctness verification, performance optimization, or detailed analysis of computational workflows across Fig."
+    },
+    {
+      "field": "contributions[2].evidence",
+      "status": "pass",
+      "match_type": "exact"
+    },
+    {
+      "field": "contributions[3].evidence",
+      "status": "pass",
+      "match_type": "exact"
+    },
+    {
+      "field": "gap_identified[0].evidence",
+      "status": "pass",
+      "match_type": "exact"
+    },
+    {
+      "field": "gap_identified[1].evidence",
+      "status": "fail",
+      "match_type": "not_found",
+      "best_match_ratio": 0.613,
+      "best_match_sentence": "One reason for this high cycle count may be that the RV32IM ISA lacks the specialized hardware extensions needed for efficient deep learning workloads."
+    },
+    {
+      "field": "gap_identified[2].evidence",
+      "status": "partial",
+      "match_type": "near_match",
+      "best_match_ratio": 0.851,
+      "best_match_sentence": "While this approach can be more complex to manage because it requires explicit data transfers between the memory of CPU and the memory of NPU, it can offer more control."
+    }
+  ],
+  "numeric_claim_checks": [
+    {
+      "field": "key_results",
+      "token": "32",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "8KB",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "40",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "200MHz",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "7.06",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "5.58",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "50",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "11.00MB",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "1.97MB",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "56.7ms",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "97.7MB",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "1614.8ms",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "224×",
+      "status": "pass"
+    },
+    {
+      "field": "key_results",
+      "token": "2770亿",
+      "status": "fail"
+    },
+    {
+      "field": "key_results",
+      "token": "11.2",
+      "status": "pass"
+    },
+    {
+      "field": "proposal_evidence.for_feasibility",
+      "token": "512",
+      "status": "pass"
+    },
+    {
+      "field": "proposal_evidence.for_feasibility",
+      "token": "32",
+      "status": "pass"
+    },
+    {
+      "field": "proposal_evidence.for_feasibility",
+      "token": "50",
+      "status": "pass"
+    },
+    {
+      "field": "proposal_evidence.for_feasibility",
+      "token": "5.58",
+      "status": "pass"
+    },
+    {
+      "field": "proposal_evidence.for_feasibility",
+      "token": "11.00MB",
+      "status": "pass"
+    },
+    {
+      "field": "proposal_evidence.for_feasibility",
+      "token": "1.97MB",
+      "status": "pass"
+    },
+    {
+      "field": "proposal_evidence.for_feasibility",
+      "token": "56.7ms",
+      "status": "pass"
+    },
+    {
+      "field": "proposal_evidence.for_feasibility",
+      "token": "200MHz",
+      "status": "pass"
+    },
+    {
+      "field": "proposal_evidence.for_feasibility",
+      "token": "1614.8ms",
+      "status": "pass"
+    },
+    {
+      "field": "proposal_evidence.for_feasibility",
+      "token": "28.5",
+      "status": "fail"
+    }
+  ],
+  "issues": [
+    {
+      "severity": "critical",
+      "field": "title",
+      "category": "metadata",
+      "message": "Generated metadata does not match the source paper."
+    },
+    {
+      "severity": "minor",
+      "field": "contributions[1].evidence",
+      "category": "evidence",
+      "message": "Evidence quote was not found verbatim, but a near match exists in extracted paper text."
+    },
+    {
+      "severity": "major",
+      "field": "gap_identified[1].evidence",
+      "category": "evidence",
+      "message": "Evidence quote was not found verbatim in the source paper."
+    },
+    {
+      "severity": "minor",
+      "field": "gap_identified[2].evidence",
+      "category": "evidence",
+      "message": "Evidence quote was not found verbatim, but a near match exists in extracted paper text."
+    },
+    {
+      "severity": "minor",
+      "field": "key_results",
+      "category": "numeric",
+      "message": "Numeric token '2770亿' was not found in the source paper text."
+    },
+    {
+      "severity": "minor",
+      "field": "proposal_evidence.for_feasibility",
+      "category": "numeric",
+      "message": "Numeric token '28.5' was not found in the source paper text."
+    }
+  ]
+}
+
+exec
+/usr/bin/zsh -lc "sed -n '1,220p' /root/opencute/workspace/survey/skill/codex/paper-json-review/references/review-schema.md" in /root/opencute/workspace/survey
+ succeeded in 0ms:
+# Review Output Contract
+
+Output only one JSON object with this shape:
+
+```json
+{
+  "review": {
+    "review_target": {
+      "analysis_json_path": "/abs/path/to/generated.json",
+      "paper_json_path": "/abs/path/to/paper.json",
+      "analysis_title": "string",
+      "paper_title": "string",
+      "resolved_paper_by": "explicit_path | doi | title_exact | filename_exact | manual"
+    },
+    "overall_verdict": "pass | minor_revision | major_revision | reject",
+    "ready_for_proposal_use": false,
+    "confidence": "high | medium | low",
+    "summary": "中文总结，2-4句话",
+    "checks": {
+      "schema": "pass | mixed | fail",
+      "metadata": "pass | mixed | fail",
+      "evidence_quotes": "pass | mixed | fail",
+      "semantic_grounding": "pass | mixed | fail",
+      "taxonomy_mapping": "pass | mixed | fail",
+      "numeric_claims": "pass | mixed | fail"
+    },
+    "field_reviews": [
+      {
+        "field": "research_purpose",
+        "status": "supported | partially_supported | unsupported | incorrect | format_error",
+        "severity": "critical | major | minor",
+        "reason": "中文说明",
+        "paper_evidence": "英文原文；若缺失则写 信息不足，无法从文本中提取",
+        "suggested_fix": "中文修订建议；若无需修改则写 保持不变"
+      }
+    ],
+    "issues": [
+      {
+        "severity": "critical | major | minor",
+        "field": "contributions[1].evidence",
+        "problem": "中文说明具体问题",
+        "paper_evidence": "英文原文；若缺失则写 信息不足，无法从文本中提取",
+        "recommended_action": "中文建议动作"
+      }
+    ],
+    "stats": {
+      "required_field_count": 17,
+      "missing_required_fields": [],
+      "matched_evidence_quotes": 0,
+      "total_evidence_quotes": 0,
+      "matched_numeric_claims": 0,
+      "total_numeric_claims": 0
+    }
+  },
+  "revised_analysis": {
+    "title": "string",
+    "authors": "string",
+    "year": 2025,
+    "venue": "string",
+    "doi": "string",
+    "research_purpose": "string",
+    "research_significance": "string",
+    "contributions": [
+      {
+        "point": "string",
+        "evidence": "string"
+      }
+    ],
+    "theme_primary": "string",
+    "theme_secondary": "string or null",
+    "workstream_fit": "1 | 2 | 3",
+    "is_close_baseline_to_cute": false,
+    "key_technique": "string",
+    "key_results": "string",
+    "gap_identified": [
+      {
+        "gap": "string",
+        "evidence": "string",
+        "relevance_to_cute": "string"
+      }
+    ],
+    "proposal_evidence": {
+      "for_state_of_art": "string",
+      "for_gap": "string",
+      "for_feasibility": "string"
+    }
+  }
+}
+```
+
+`review` follows the review object contract below.
+`revised_analysis` must be the corrected dossier after applying the review findings and must follow the analysis contract.
+
+## Required review coverage
+
+Inside `review.field_reviews`, cover these dossier sections:
+
+- `research_purpose`
+- `research_significance`
+- `contributions`
+- `theme_primary`
+- `theme_secondary`
+- `workstream_fit`
+- `is_close_baseline_to_cute`
+- `key_technique`
+- `key_results`
+- `gap_identified`
+- `proposal_evidence.for_state_of_art`
+- `proposal_evidence.for_gap`
+- `proposal_evidence.for_feasibility`
+
+Use `review.issues` for pinpointed problems such as a fabricated quote, incorrect number, or unsupported conclusion.
+
+## Revised analysis requirements
+
+- `revised_analysis` must preserve the original dossier schema.
+- Fix every `critical` issue in `review`.
+- Prefer conservative wording over speculative wording.
+- Keep `evidence` fields as direct English quotes from the paper.
+- If a detail cannot be confidently corrected from the paper text, replace the risky wording with a safer formulation or `信息不足，无法从文本中提取`.
+
+## Verdict guidance
+
+- `pass`: no meaningful factual issue; minor wording cleanup at most.
+- `minor_revision`: mostly faithful, but some fields need small corrections.
+- `major_revision`: multiple important fields are overstated, weakly grounded, or classification is wrong.
+- `reject`: the dossier is unreliable because core evidence, quotes, or claims fail grounding.
+
+## Severity guidance
+
+- `critical`: fabricated quote, reversed conclusion, wrong core result, or fundamentally wrong paper match
+- `major`: key field overstated, unsupported technical detail, wrong theme/workstream/baseline classification
+- `minor`: wording too strong, incomplete nuance, formatting issue, or weak but salvageable paraphrase
+
+exec
+/usr/bin/zsh -lc "sed -n '1,260p' /root/opencute/workspace/survey/skill/codex/paper-json-review/references/analysis-contract.md" in /root/opencute/workspace/survey
+ succeeded in 0ms:
+# Target Dossier Contract
+
+The generated dossier JSON being reviewed should match this top-level shape:
+
+```json
+{
+  "title": "string",
+  "authors": "string",
+  "year": 2025,
+  "venue": "string",
+  "doi": "string",
+  "research_purpose": "string",
+  "research_significance": "string",
+  "contributions": [
+    {
+      "point": "string",
+      "evidence": "string"
+    }
+  ],
+  "theme_primary": "string",
+  "theme_secondary": "string or null",
+  "workstream_fit": "1 | 2 | 3",
+  "is_close_baseline_to_cute": false,
+  "key_technique": "string",
+  "key_results": "string",
+  "gap_identified": [
+    {
+      "gap": "string",
+      "evidence": "string",
+      "relevance_to_cute": "string"
+    }
+  ],
+  "proposal_evidence": {
+    "for_state_of_art": "string",
+    "for_gap": "string",
+    "for_feasibility": "string"
+  }
+}
+```
+
+## Required interpretation rules
+
+### Evidence fields
+
+- `contributions[].evidence` and `gap_identified[].evidence` must be direct English quotes from the paper.
+- Quotes should come from the paper text, not from invented summaries.
+
+### Theme clusters
+
+Use exactly one of these strings:
+
+1. `1. CPU-side AI acceleration / in-core accelerator`
+2. `2. Matrix extension / AMX / SME`
+3. `3. Vector extension / RVV / vector AI enhancement`
+4. `4. RISC-V custom ISA / open ISA AI extension`
+5. `5. LLM / Transformer / inference acceleration`
+6. `6. Quantization / mixed precision / FP8 / BF16 / block scale / mx`
+7. `7. Compiler / tensor IR / operator generation`
+8. `8. Memory hierarchy / scratchpad / dataflow / systolic`
+9. `9. HBM / advanced packaging / multi-node system`
+
+### Workstream mapping
+
+- `1`: CPU matrix compute extension (CUTE), matrix/tensor extensions, CPU-side accelerators, quantization on CPU, scratchpad/memory optimization
+- `2`: RVV AI vector enhancement and AI-assisted operator generation, vector extensions, RISC-V ISA, compiler/operator generation
+- `3`: HBM, advanced packaging, multi-node AI-CPU systems
+
+Pick the dominant workstream only.
+
+### `is_close_baseline_to_cute`
+
+Set `true` only when the paper is a direct baseline to CUTE work, such as:
+
+- a CPU matrix/tensor extension
+- an in-core AI accelerator on RISC-V or similar ISA
+- a scratchpad-based matrix dataflow inside a CPU core
+
+Otherwise set `false`.
+
+## Common review failure modes
+
+- Metadata copied incorrectly from the corpus paper
+- English evidence quote not present in the paper text
+- Chinese summary adds claims absent from the paper
+- Numerical results copied with wrong baseline, unit, or multiplier
+- `proposal_evidence` turns a mild discussion point into a strong claim
+- Theme/workstream classification chosen by keyword match but not by paper focus
+- `is_close_baseline_to_cute` set too aggressively
+
+Preflight found one metadata mismatch, one fabricated gap quote, and two numeric overstatements. I’m checking the exact paper passages around task scheduling, memory results, and conclusion so the revised dossier stays conservative and quote-grounded.
+  ✓ Read paper-json-review skill instructions and identify required workflow
+  ✓ Inspect the analysis JSON and source paper JSON, then run any preflight checker
+  → Verify claims against source paper content and produce corrected review + revised analysis JSON
+exec
+/usr/bin/zsh -lc "python - <<'PY'
+import json
+p='/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json'
+with open(p) as f:
+    data=json.load(f)
+text=data['body_text']
+for needle in [
+    'A task scheduler with three operational modes is developed',
+    'In our work, we chose to use discrete memory allocation',
+    '277 billion cycles',
+    'there are two key approaches for our architecture to enhance the CPU inference speed',
+    '56.7 ms for ResNet50 compared to 1614.8 ms in [14]',
+    '11.2× faster than that in [18]',
+    'Moving forward, we could explore the integration of more advanced machine learning models, such as transformers',
+    '512-bit NPU instruction',
+    'RISC-V reserves significant instruction code space for user-defined extensions'
+]:
+    idx=text.find(needle)
+    print('\\nNEEDLE:', needle)
+    print('FOUND:', idx)
+    if idx"'!=-1:
+        start=max(0, idx-260)
+        end=min(len(text), idx+len(needle)+260)
+        print(text[start:end])
+PY' in /root/opencute/workspace/survey
+exec
+/usr/bin/zsh -lc "python - <<'PY'
+import json
+p='/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json'
+with open(p) as f:
+    data=json.load(f)
+text=data['body_text']
+for needle in [
+    'the custom opcodes in [6] are utilized',
+    'prefixes of 00 and 10',
+    'Each 512-bit instruction is segmented into 18 lines',
+    '24.4 MB for ResNet50 compared to 97.7 MB in [14]',
+    '11.00 MB (SS) to 2.41 MB (RU)',
+    '1.97 MB, achieving a 5.58× reduction',
+    'operators executed on the CPU maintain a 32-bit precision'
+]:
+    idx=text.find(needle)
+    print('\\nNEEDLE:', needle)
+    print('FOUND:', idx)
+    if idx"'!=-1:
+        start=max(0, idx-260)
+        end=min(len(text), idx+len(needle)+260)
+        print(text[start:end])
+PY' in /root/opencute/workspace/survey
+ succeeded in 139ms:
+
+NEEDLE: A task scheduler with three operational modes is developed
+FOUND: -1
+
+NEEDLE: In our work, we chose to use discrete memory allocation
+FOUND: 45972
+: end for
+28: return nodes_raddr, nodes_waddr
+separate memory spaces for the CPU and NPU. While this
+approach can be more complex to manage because it requires
+explicit data transfers between the memory of CPU and the
+memory of NPU, it can offer more control.
+In our work, we chose to use discrete memory allocation.
+Algorithm 2 outlines the memory management process of
+hardware/software (HW/SW) operators. The memory manager
+takes as input a set of nodes and the start address of the
+NPU memory (START_HW), and it outputs the read and write
+addresses of these nodes. It is 
+
+NEEDLE: 277 billion cycles
+FOUND: 54011
+ce, the differences observed in
+task scheduling conﬁgurations can be attributed solely to
+scheduling strategies.
+All_CPU Mode: In this mode, we run YOLOv3-Tiny with
+an input size of 224 × 224 × 3 (in 8-bit), and observed an
+extraordinarily high cycle count of 277 billion cycles. One
+reason for this high cycle count may be that the RV32IM ISA
+lacks the specialized hardware extensions needed for efﬁcient
+deep learning workloads. Many modern architectures leverage
+single instruction, multiple data (SIMD), vector operations, or
+dedicate
+
+NEEDLE: there are two key approaches for our architecture to enhance the CPU inference speed
+FOUND: -1
+
+NEEDLE: 56.7 ms for ResNet50 compared to 1614.8 ms in [14]
+FOUND: -1
+
+NEEDLE: 11.2× faster than that in [18]
+FOUND: -1
+
+NEEDLE: Moving forward, we could explore the integration of more advanced machine learning models, such as transformers
+FOUND: -1
+
+NEEDLE: 512-bit NPU instruction
+FOUND: 20355
+s data is passed to the
+LLVM dialect, the memory manager uniﬁes the management
+of CPU and NPU data spaces, ensuring the correctness of data
+access across layers while optimizing memory usage.
+To ensure compatibility within a heterogeneous archi-
+tecture, each 512-bit NPU instruction must be split into
+18 individual 32-bit instructions in the RISC-V format. In
+this conﬁguration, the “00” preﬁx is assigned to NPU-
+speciﬁc instructions, while the “10” preﬁx indicates the ﬁnal
+instruction in the sequence. This transformation enables the
+seam
+
+NEEDLE: RISC-V reserves significant instruction code space for user-defined extensions
+FOUND: -1
+
+ succeeded in 126ms:
+
+NEEDLE: the custom opcodes in [6] are utilized
+FOUND: -1
+
+NEEDLE: prefixes of 00 and 10
+FOUND: -1
+
+NEEDLE: Each 512-bit instruction is segmented into 18 lines
+FOUND: -1
+
+NEEDLE: 24.4 MB for ResNet50 compared to 97.7 MB in [14]
+FOUND: 51566
+tional
+delays introduced by high-precision processing on the CPU,
+where applicable.
+In comparison to other architectures listed in the table,
+such as the extended SODA synthesizer in [14], our archi-
+tecture excels in delivering lower memory footprints (e.g.,
+24.4 MB for ResNet50 compared to 97.7 MB in [14]) and
+reduced latency (e.g., 56.7 ms for ResNet50 compared to
+1614.8 ms in [14]) even converted to 32-bit precision. At
+the same time, our latency is also 11.2× faster than that
+IEEE TRANSACTIONS ON COMPUTER-AIDED DESIGN OF INTEGRATED CIRCUITS AND SYSTEMS, VOL
+
+NEEDLE: 11.00 MB (SS) to 2.41 MB (RU)
+FOUND: 60491
+en different models. For example, in
+the tested models, the minimum FM memory size is 1.14 MB,
+while the maximum reaches 12.51 MB.
+The RU mechanism shows a notable reduction in memory
+usage compared to SS. Speciﬁcally, memory usage for
+ResNet50 decreases from 11.00 MB (SS) to 2.41 MB (RU),
+while YOLOv3 shows a reduction from 12.51 MB (SS) to
+2.84 MB (RU). However, although RU improves efﬁciency, it
+still consumes more memory than DE, as it reuses allocated
+memory less aggressively in some models.
+DE stands out as the most efﬁcient memory alloc
+
+NEEDLE: 1.97 MB, achieving a 5.58× reduction
+FOUND: -1
+
+NEEDLE: operators executed on the CPU maintain a 32-bit precision
+FOUND: -1
+
+exec
+/usr/bin/zsh -lc "python - <<'PY'
+import json,re
+p='/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json'
+with open(p) as f:data=json.load(f)
+text=data['body_text']
+patterns=[
+ r'Based on the above analysis, there are two key approaches.*?a larger cache is needed\\.',
+ r'Moving forward, we could explore the integration of more\\s+advanced machine learning models, such as transformers, and\\s+their adaptation to more heterogeneous architectures\\.',
+ r'The authors are with.*?Digital Object Identiﬁer',
+ r'RISC-V reserves signiﬁcant instruction code space for user-\\s+deﬁned extensions \\[6\\], \\[7\\], making it ideal for domain-speciﬁc\\s+enhancements\\.',
+ r'To ensure compatibility within a heterogeneous archi-\\s+tecture, each 512-bit NPU instruction must be split into\\s+18 individual 32-bit instructions in the RISC-V format\\.',
+ r'At\\s+the same time, our latency is also 11\\.2× faster than that\\s+in \\[18\\] at the same precision and low frequency\\.'
+]
+for pat in patterns:
+    m=re.search(pat,text)
+    print('\\nPATTERN',pat)
+    if m: print(m.group(0))
+    else: print('NOT FOUND')
+PY" in /root/opencute/workspace/survey
+ succeeded in 132ms:
+
+PATTERN Based on the above analysis, there are two key approaches.*?a larger cache is needed\.
+NOT FOUND
+
+PATTERN Moving forward, we could explore the integration of more\s+advanced machine learning models, such as transformers, and\s+their adaptation to more heterogeneous architectures\.
+Moving forward, we could explore the integration of more
+advanced machine learning models, such as transformers, and
+their adaptation to more heterogeneous architectures.
+
+PATTERN The authors are with.*?Digital Object Identiﬁer
+NOT FOUND
+
+PATTERN RISC-V reserves signiﬁcant instruction code space for user-\s+deﬁned extensions \[6\], \[7\], making it ideal for domain-speciﬁc\s+enhancements\.
+RISC-V reserves signiﬁcant instruction code space for user-
+deﬁned extensions [6], [7], making it ideal for domain-speciﬁc
+enhancements.
+
+PATTERN To ensure compatibility within a heterogeneous archi-\s+tecture, each 512-bit NPU instruction must be split into\s+18 individual 32-bit instructions in the RISC-V format\.
+To ensure compatibility within a heterogeneous archi-
+tecture, each 512-bit NPU instruction must be split into
+18 individual 32-bit instructions in the RISC-V format.
+
+PATTERN At\s+the same time, our latency is also 11\.2× faster than that\s+in \[18\] at the same precision and low frequency\.
+NOT FOUND
+
+exec
+/usr/bin/zsh -lc "python - <<'PY'
+import json,re
+p='/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json'
+with open(p) as f:data=json.load(f)
+text=data['body_text']
+for pat in [
+ r'A Heterogeneous CNN Compilation Framework\\s+for RISC-V CPU and NPU Integration Based\\s+on ONNX-MLIR\\s+Shan Cao\\s+.*, Member, IEEE, Meiling Yang, Yintao Liu, Yu Li,\\s+Beining Zhao, Graduate Student Member, IEEE, Xinyu Chen, and Zhiyuan Jiang\\s+, Member, IEEE',
+ r'Based on the above analysis, there are two key approaches[\\s\\S]{0,250}?a larger cache is needed\\.',
+ r'At the same time, our latency is also 11\\.2× faster than that[\\s\\S]{0,80}?same precision and low frequency\\.',
+ r'DE stands out as the most efﬁcient memory allocation[\\s\\S]{0,220}?5\\.58× reduction compared to SS\\.'
+]:
+    m=re.search(pat,text)
+    print('\\nPATTERN',pat)
+    print(m.group(0) if m else 'NOT FOUND')
+PY" in /root/opencute/workspace/survey
+ succeeded in 0ms:
+
+PATTERN A Heterogeneous CNN Compilation Framework\s+for RISC-V CPU and NPU Integration Based\s+on ONNX-MLIR\s+Shan Cao\s+.*, Member, IEEE, Meiling Yang, Yintao Liu, Yu Li,\s+Beining Zhao, Graduate Student Member, IEEE, Xinyu Chen, and Zhiyuan Jiang\s+, Member, IEEE
+A Heterogeneous CNN Compilation Framework
+for RISC-V CPU and NPU Integration Based
+on ONNX-MLIR
+Shan Cao
+, Member, IEEE, Meiling Yang, Yintao Liu, Yu Li,
+Beining Zhao, Graduate Student Member, IEEE, Xinyu Chen, and Zhiyuan Jiang
+, Member, IEEE
+
+PATTERN Based on the above analysis, there are two key approaches[\s\S]{0,250}?a larger cache is needed\.
+Based on the above analysis, there are two key approaches
+for our architecture to enhance the CPU inference speed. First,
+we can customize the instruction set for deep learning tasks;
+second, a larger cache is needed.
+
+PATTERN At the same time, our latency is also 11\.2× faster than that[\s\S]{0,80}?same precision and low frequency\.
+NOT FOUND
+
+PATTERN DE stands out as the most efﬁcient memory allocation[\s\S]{0,220}?5\.58× reduction compared to SS\.
+DE stands out as the most efﬁcient memory allocation
+mechanism, reducing memory consumption to minimal levels.
+For example, ResNet50 requires only 1.97 MB, achieving a
+5.58× reduction compared to SS.
+
+exec
+/usr/bin/zsh -lc "python - <<'PY'
+import json,re
+p='/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json'
+with open(p) as f:data=json.load(f)
+text=data['body_text']
+idx=text.find('11.2×')
+print(idx)
+print(text[idx-150:idx+180])
+PY" in /root/opencute/workspace/survey
+ succeeded in 0ms:
+51769
+
+reduced latency (e.g., 56.7 ms for ResNet50 compared to
+1614.8 ms in [14]) even converted to 32-bit precision. At
+the same time, our latency is also 11.2× faster than that
+IEEE TRANSACTIONS ON COMPUTER-AIDED DESIGN OF INTEGRATED CIRCUITS AND SYSTEMS, VOL. 44, NO. 11, NOVEMBER 2025
+Fig. 6.
+Comparison of code density and inferenc
+
+codex
+{"review":{"checks":{"evidence_quotes":"mixed","metadata":"fail","numeric_claims":"mixed","schema":"pass","semantic_grounding":"mixed","taxonomy_mapping":"pass"},"confidence":"high","field_reviews":[{"field":"research_purpose","paper_evidence":"In this article, we propose a RISC-V CPU/NPU co-computing-based compilation framework to solve the problem of mapping from algorithms to heterogeneous architectures.","reason":"该字段与摘要和引言一致，准确概括了论文目标，没有明显外推。","severity":"minor","status":"supported","suggested_fix":"保持不变"},{"field":"research_significance","paper_evidence":"Despite this potential, there is currently insufficient academic focus on CPU/NPU co-computing, and few architectures or toolchains have been developed to support such integration.","reason":"总体方向正确，但“填补空白”“通用的、可配置的CNN异构部署方案”等表述略强于原文。论文强调学术关注不足和支持多种CNN，但未直接宣称“填补空白”。","severity":"minor","status":"partially_supported","suggested_fix":"改为更保守表述：该工作面向RISC-V CPU/NPU协同编译这一研究较少的方向，基于ONNX-MLIR实现多种CNN的异构映射与优化，并在代码密度和内存使用上取得提升。"},{"field":"contributions","paper_evidence":"1) By extending the ONNX-MLIR framework with custom operators, we introduce an operator packing technique that maximizes the computational efficiency of NPUs, while minimizing overhead during transitions between heterogeneous operations. 2) A task scheduler with three operational modes is developed, allowing users to customize the task distribution according to specific requirements, including correctness verification, performance optimization, or detailed analysis of computational workflows across heterogeneous platforms, which typically emphasizes the versatility of the framework. 3) The discrete memory allocation strategy is optimized to accommodate the CPU/NPU heterogeneous architecture, ensuring seamless data access during cross-platform computations. To further enhance memory efficiency, the memory management system incorporates two techniques: a dual-end (DE) allocation strategy with a self-check function, and a release-after-use (RU) mechanism that minimizes memory footprint.","reason":"贡献点总体与论文一致。第二条 evidence 不是完全逐字匹配，但与正文贡献列表高度一致，可保守修正为论文中的精确引文。","severity":"minor","status":"partially_supported","suggested_fix":"保留四个贡献点的结构，但将第二条 evidence 改为论文贡献列表中的原句；第四条贡献可继续保留，但措辞应避免夸大“弥合差距”的结论强度。"},{"field":"theme_primary","paper_evidence":"The ONNX-MLIR toolchain [10] is a modular, open-source framework that supports adaptive scaling, converting ONNX input into multilevel intermediate representations (MLIRs). However, it currently lacks support for generating back-end instructions for heterogeneous architectures.","reason":"论文核心是基于ONNX-MLIR的异构编译框架，主主题归类为编译器/IR/算子生成是合理的。","severity":"minor","status":"supported","suggested_fix":"保持不变"},{"field":"theme_secondary","paper_evidence":"RISC-V reserves signiﬁcant instruction code space for user-\ndeﬁned extensions [6], [7], making it ideal for domain-speciﬁc\nenhancements.","reason":"论文确实涉及RISC-V自定义指令空间和NPU指令映射，因此次主题归入RISC-V custom ISA合理。","severity":"minor","status":"supported","suggested_fix":"保持不变"},{"field":"workstream_fit","paper_evidence":"Different hardware architectures often have their own unique instruction sets and capabilities. To integrate a heterogeneous compilation platform that supports multiple architectures, it is essential to ensure that the generated code is compatible across all targeted devices.","reason":"论文更偏向RISC-V ISA与编译器协同，而非CPU核内矩阵扩展或系统级HBM，因此映射到工作流2合理。","severity":"minor","status":"supported","suggested_fix":"保持不变"},{"field":"is_close_baseline_to_cute","paper_evidence":"However, these architectures often support only a limited number of CNNs and uses the CPU solely as a host, without incorporating it into the computation process.","reason":"该论文不是CPU矩阵扩展、核内AI加速器或直接的CUTE基线，设置为 false 合理。","severity":"minor","status":"supported","suggested_fix":"保持不变"},{"field":"key_technique","paper_evidence":"To ensure compatibility within a heterogeneous archi-\ntecture, each 512-bit NPU instruction must be split into\n18 individual 32-bit instructions in the RISC-V format.","reason":"技术路线总体准确，包含自定义算子、算法适配、数据协调、量化和权重重排等要点。少量实现细节属于综合表述，但未发现核心性失真。","severity":"minor","status":"supported","suggested_fix":"保持不变，必要时将“无缝集成”等评价性措辞弱化为“实现映射与兼容”"},{"field":"key_results","paper_evidence":"It achieves up to a 7.06× reduction in code density and up to a 5.58× improvement in memory usage. For example, ResNet50 requires only 1.97 MB, achieving a 5.58× reduction compared to SS. In comparison to other architectures listed in the table, such as the extended SODA synthesizer in [14], our architecture excels in delivering lower memory footprints (e.g., 24.4 MB for ResNet50 compared to 97.7 MB in [14]) and reduced latency (e.g., 56.7 ms for ResNet50 compared to 1614.8 ms in [14]) even converted to 32-bit precision. All_CPU Mode: In this mode, we run YOLOv3-Tiny with an input size of 224 × 224 × 3 (in 8-bit), and observed an extraordinarily high cycle count of 277 billion cycles.","reason":"主要结果基本有据，但原文把 ResNet50 与 [14] 的对比内存写为 24.4 MB 对 97.7 MB，而分析稿写成 11.00 MB 对 97.7 MB，混淆了不同比较口径；“2770亿周期”虽语义接近 277 billion cycles，但不宜作为纸面精确摘录。","severity":"major","status":"partially_supported","suggested_fix":"将结果改写为：代码密度最高降低 7.06×、DE 相比 SS 的内存使用最高改善 5.58×；ResNet50 在 DE 下为 1.97 MB，在与 [14] 的对比中延迟为 56.7 ms 对 1614.8 ms、内存为 24.4 MB 对 97.7 MB；ALL_CPU 模式下 YOLOv3-Tiny 观测到 277 billion cycles。"},{"field":"gap_identified","paper_evidence":"Moving forward, we could explore the integration of more\nadvanced machine learning models, such as transformers, and\ntheir adaptation to more heterogeneous architectures. In our work, we chose to use discrete memory allocation. While this approach can be more complex to manage because it requires explicit data transfers between the memory of CPU and the memory of NPU, it can offer more control. One reason for this high cycle count may be that the RV32IM ISA lacks the specialized hardware extensions needed for efﬁcient deep learning workloads. Based on the above analysis, there are two key approaches for our architecture to enhance the CPU inference speed. First, we can customize the instruction set for deep learning tasks; second, a larger cache is needed.","reason":"第1和第3个 gap 有文本支持。第2个 gap 的原 evidence 不是逐字引文，而是把两段话拼接并加了省略，需改成论文中的直接引文。","severity":"major","status":"partially_supported","suggested_fix":"保留三个 gap 的方向，但将第2条 evidence 替换为论文中的精确句子；同时把“关键路径”等提炼语气收敛为“为CUTE提供动机/启发”。"},{"field":"proposal_evidence.for_state_of_art","paper_evidence":"The ONNX-MLIR toolchain [10] is a modular, open-source framework that supports adaptive scaling, converting ONNX input into multilevel intermediate representations (MLIRs). However, it currently lacks support for generating back-end instructions for heterogeneous architectures.","reason":"该字段将论文定位为基于MLIR的较新异构编译工作，这一判断基本成立；但“前沿工作”属于推断，应保持谨慎。","severity":"minor","status":"partially_supported","suggested_fix":"改为较保守表述：该论文代表了基于 ONNX-MLIR 扩展异构后端指令生成的一项近期工作，可作为RISC-V异构编译现状的参考。"},{"field":"proposal_evidence.for_gap","paper_evidence":"All_CPU Mode: In this mode, we run YOLOv3-Tiny with an input size of 224 × 224 × 3 (in 8-bit), and observed an extraordinarily high cycle count of 277 billion cycles. One reason for this high cycle count may be that the RV32IM ISA lacks the specialized hardware extensions needed for efﬁcient deep learning workloads. Based on the above analysis, there are two key approaches for our architecture to enhance the CPU inference speed. First, we can customize the instruction set for deep learning tasks; second, a larger cache is needed. However, these architectures often support only a limited number of CNNs and uses the CPU solely as a host, without incorporating it into the computation process. Moving forward, we could explore the integration of more advanced machine learning models, such as transformers, and their adaptation to more heterogeneous architectures.","reason":"论证方向基本成立，但原文把多个观察提升为对CUTE的系统性支撑，存在轻度外推。尤其“系统性解决方案”不是论文原文结论。","severity":"minor","status":"partially_supported","suggested_fix":"改成“这些观察为CUTE关于CPU扩展、编译支持和模型覆盖面的设计提供动机”，避免写成论文直接证明CUTE方案。"},{"field":"proposal_evidence.for_feasibility","paper_evidence":"To ensure compatibility within a heterogeneous archi-\ntecture, each 512-bit NPU instruction must be split into\n18 individual 32-bit instructions in the RISC-V format. For example, ResNet50 requires only 1.97 MB, achieving a 5.58× reduction compared to SS. In comparison to other architectures listed in the table, such as the extended SODA synthesizer in [14], our architecture excels in delivering lower memory footprints (e.g., 24.4 MB for ResNet50 compared to 97.7 MB in [14]) and reduced latency (e.g., 56.7 ms for ResNet50 compared to 1614.8 ms in [14]) even converted to 32-bit precision.","reason":"第1和第2点有据。第3点中的“28.5倍加速”无法从论文文本中直接验证，属于过度推导；文中只明确给出 56.7 ms 对 1614.8 ms 的对比。","severity":"major","status":"partially_supported","suggested_fix":"删除“28.5倍加速”表述，改为引用论文明确给出的延迟和内存数据，并把可行性结论限定为“说明低精度与编译器/内存协同优化在该平台上有效”。"}],"issues":[{"field":"title","paper_evidence":"A Heterogeneous CNN Compilation Framework for RISC-V CPU and NPU Integration Based on ONNX-MLIR","problem":"标题与源论文不一致，分析稿使用了中文改写标题而非论文原题。","recommended_action":"将 `title` 改为论文原始英文标题。","severity":"critical"},{"field":"contributions[1].evidence","paper_evidence":"A task scheduler with three operational modes is developed, allowing users to customize the task distribution according to specific requirements, including correctness verification, performance optimization, or detailed analysis of computational workflows across heterogeneous platforms, which typically emphasizes the versatility of the framework.","problem":"证据引文不是逐字原文，末尾被改写为更流畅的总结句。","recommended_action":"替换为论文贡献列表中的精确英文原句。","severity":"minor"},{"field":"gap_identified[1].evidence","paper_evidence":"One reason for this high cycle count may be that the RV32IM ISA lacks the specialized hardware extensions needed for efﬁcient deep learning workloads. Based on the above analysis, there are two key approaches for our architecture to enhance the CPU inference speed. First, we can customize the instruction set for deep learning tasks; second, a larger cache is needed.","problem":"原 evidence 使用了带省略号的拼接句，不是论文中的直接英文引文。","recommended_action":"改用论文中的完整直接引文，避免省略号和自造连接。","severity":"major"},{"field":"gap_identified[2].evidence","paper_evidence":"In our work, we chose to use discrete memory allocation. While this approach can be more complex to manage because it requires explicit data transfers between the memory of CPU and the memory of NPU, it can offer more control.","problem":"证据接近原文，但顺序和断句与论文不完全一致。","recommended_action":"替换为论文中的精确两句原文。","severity":"minor"},{"field":"key_results","paper_evidence":"In comparison to other architectures listed in the table, such as the extended SODA synthesizer in [14], our architecture excels in delivering lower memory footprints (e.g., 24.4 MB for ResNet50 compared to 97.7 MB in [14]) and reduced latency (e.g., 56.7 ms for ResNet50 compared to 1614.8 ms in [14]) even converted to 32-bit precision.","problem":"分析稿把 ResNet50 与 [14] 的比较内存写成 11.00MB 对 97.7MB，混淆了 SS/DE 内部比较与跨论文比较。","recommended_action":"分别写清两类结果：DE 对 SS 为 1.97 MB 对 11.00 MB；与 [14] 对比为 24.4 MB 对 97.7 MB、56.7 ms 对 1614.8 ms。","severity":"major"},{"field":"proposal_evidence.for_feasibility","paper_evidence":"信息不足，无法从文本中提取","problem":"“相比32-bit实现（1614.8ms）有28.5倍加速”这一数值关系无法从论文文本中直接成立；1614.8 ms 来自与文献 [14] 的对比，不是同一实现的 32-bit 基线。","recommended_action":"删除 28.5 倍加速说法，改用论文直接给出的延迟与内存数据。","severity":"major"}],"overall_verdict":"major_revision","ready_for_proposal_use":false,"review_target":{"analysis_json_path":"/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/llm/glm5.1/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json","analysis_title":"一种基于ONNX-MLIR的面向RISC-V CPU与NPU集成的异构CNN编译框架","paper_json_path":"/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json","paper_title":"A Heterogeneous CNN Compilation Framework for RISC-V CPU and NPU Integration Based on ONNX-MLIR","resolved_paper_by":"explicit_path"},"stats":{"matched_evidence_quotes":4,"matched_numeric_claims":23,"missing_required_fields":[],"required_field_count":17,"total_evidence_quotes":7,"total_numeric_claims":25},"summary":"该分析稿整体抓住了论文主线，主题归类和多数技术要点基本可信，但存在一个关键元数据错误、至少一处非逐字证据引文，以及若干结果数字口径混淆。最主要的问题是标题未与源论文一致、第二个 gap 的 evidence 不是论文原句、以及将内部内存比较与跨论文比较混写。修正后可继续用于提案参考，但当前版本还不适合直接下游使用。"},"revised_analysis":{"authors":"Shan Cao, Meiling Yang, Yintao Liu, Yu Li, Beining Zhao, Xinyu Chen, Zhiyuan Jiang","contributions":[{"evidence":"By extending the ONNX-MLIR framework with custom operators, we introduce an operator packing technique that maximizes the computational efficiency of NPUs, while minimizing overhead during transitions between heterogeneous operations.","point":"提出算子打包技术，通过扩展 ONNX-MLIR 的自定义算子，将多个 CNN 操作组合映射到 NPU，以减少异构操作切换开销并提升 NPU 计算效率。"},{"evidence":"A task scheduler with three operational modes is developed, allowing users to customize the task distribution according to specific requirements, including correctness verification, performance optimization, or detailed analysis of computational workflows across heterogeneous platforms, which typically emphasizes the versatility of the framework.","point":"开发了三模式任务调度器，支持按照正确性验证、性能优化或异构工作流分析需求定制 CPU/NPU 任务分配。"},{"evidence":"The discrete memory allocation strategy is optimized to accommodate the CPU/NPU heterogeneous architecture, ensuring seamless data access during cross-platform computations. To further enhance memory efficiency, the memory management system incorporates two techniques: a dual-end (DE) allocation strategy with a self-check function, and a release-after-use (RU) mechanism that minimizes memory footprint.","point":"提出面向 CPU/NPU 异构架构的内存管理优化，包括带自检的 DE 分配策略和 RU 机制，以保证跨平台数据访问正确性并降低内存占用。"},{"evidence":"To bridge the computational gap between heterogeneous platforms, within ONNX-MLIR, we developed three phases to support operator packing, algorithm adaption, and data coordination.","point":"在 ONNX-MLIR 中实现了面向异构平台的三阶段编译流程，覆盖算子打包、算法适配与数据协调。"}],"doi":"10.1109/TCAD.2025.3564561","gap_identified":[{"evidence":"Moving forward, we could explore the integration of more\nadvanced machine learning models, such as transformers, and\ntheir adaptation to more heterogeneous architectures.","gap":"该框架当前聚焦 CNN，论文将 Transformer 等更先进模型的集成留作未来工作，说明模型覆盖面仍有限。","relevance_to_cute":"这对 CUTE 的启发在于：若希望支持更广泛的 AI 工作负载，仅靠 CNN 导向的异构编译策略还不够，需进一步考虑矩阵/张量算力扩展与更通用算子支持。"},{"evidence":"One reason for this high cycle count may be that the RV32IM ISA lacks the specialized hardware extensions needed for efﬁcient deep learning workloads. Based on the above analysis, there are two key approaches for our architecture to enhance the CPU inference speed. First, we can customize the instruction set for deep learning tasks; second, a larger cache is needed.","gap":"所用 RV32IM CPU 缺少适合深度学习的专用扩展，纯 CPU 推理代价很高；论文明确指出可通过定制指令集和更大 cache 提升速度。","relevance_to_cute":"这为 CUTE 的 CPU 侧矩阵/张量扩展与片上存储优化提供了直接动机，说明 CPU 端 ISA 与内存层次是瓶颈所在。"},{"evidence":"In our work, we chose to use discrete memory allocation. While this approach can be more complex to manage because it requires explicit data transfers between the memory of CPU and the memory of NPU, it can offer more control.","gap":"论文采用离散式内存分配，CPU 与 NPU 之间需要显式数据传输，这增加了系统管理复杂度并可能带来传输开销。","relevance_to_cute":"这对 CUTE 的意义在于：如果在 CPU 侧引入矩阵加速能力，仍需同步考虑片上数据流、scratchpad 与访存组织，否则异构协同会受到数据搬运成本限制。"}],"is_close_baseline_to_cute":false,"key_results":"论文报告该框架可将代码密度最高降低 7.06×，并将内存使用最高改善 5.58×。在内存管理实验中，ResNet50 的 FM 内存从 SS 的 11.00 MB 降至 DE 的 1.97 MB。与文献 [14] 对比时，论文给出 ResNet50 的内存占用为 24.4 MB 对 97.7 MB、延迟为 56.7 ms 对 1614.8 ms；在 ALL_CPU 模式下，YOLOv3-Tiny（224 × 224 × 3, 8-bit）观测到 277 billion cycles，显示 RV32IM CPU 处理深度学习工作负载时开销很高。","key_technique":"核心技术是基于 ONNX-MLIR 构建面向 RISC-V CPU/NPU 协同计算的异构编译流程：在 ONNX dialect 中增加自定义算子以实现算子打包；通过 padding、reshaping 和数据布局调整完成算法适配与数据协调；引入任务调度、权重量化、权重重排和内存管理等附加功能；并将每条 512-bit NPU 指令拆分为 18 条 32-bit RISC-V 格式指令，以实现异构后端指令生成与兼容。","proposal_evidence":{"for_feasibility":"论文提供了三类与可行性相关的证据。首先，论文明确展示了如何把每条 512-bit NPU 指令拆分为 18 条 32-bit RISC-V 格式指令，说明在 RISC-V 指令框架内承载异构加速器控制是可实现的。其次，DE 内存管理在 ResNet50 上把 FM 内存降到 1.97 MB，相比 SS 达到 5.58× 改善，说明编译器与内存策略协同优化可以显著提升资源效率。再次，论文给出了与既有工作相比的延迟和内存优势，例如 ResNet50 为 56.7 ms 对 1614.8 ms、24.4 MB 对 97.7 MB，这表明该类异构编译与低精度部署路线在边缘 AI 平台上具备工程可行性。","for_gap":"论文揭示了几个与后续研究相关的不足。其一，ALL_CPU 模式下 YOLOv3-Tiny 需要 277 billion cycles，且作者指出 RV32IM 缺少适合深度学习的专用扩展，并提出可通过定制指令集与更大 cache 提升 CPU 推理速度。其二，论文回顾的异构体系大多把 CPU 作为主机而不是计算参与者，限制了通用性。其三，论文将 Transformer 等更先进模型的集成列为未来工作，表明当前框架仍以 CNN 为主。这些观察可以作为 CUTE 在 CPU 扩展、编译支持和模型覆盖面方面的动机依据。","for_state_of_art":"该论文发表于 2025 年 IEEE-TCAD，代表了一项基于 ONNX-MLIR 扩展异构后端指令生成的近期工作。它展示了如何把开源 MLIR 工具链扩展到 RISC-V CPU/NPU 协同编译场景，并结合任务调度、量化、权重重排和内存管理完成 CNN 部署。与此同时，论文所用 CPU 仍是 RV32IM 基础 ISA，说明 RISC-V 面向 AI 的专用 ISA 与体系结构增强仍有明显提升空间。"},"research_purpose":"针对 RISC-V CPU 与 NPU 异构平台上的 CNN 推理部署问题，论文提出一个基于 ONNX-MLIR 的编译框架，用于解决从算法到异构体系结构的映射与编译问题。该框架通过算子打包、任务调度、量化、权重重排和内存管理等机制支持 CPU 与 NPU 协同计算。","research_significance":"该工作面向学术关注相对不足的 CPU/NPU 协同编译方向，扩展了 ONNX-MLIR 对异构后端指令生成的支持，并展示了多种 CNN 在 RISC-V CPU/NPU 平台上的部署流程。论文实验表明，该框架在代码密度和内存使用方面可取得明显改进，为后续研究异构编译、RISC-V 扩展和边缘 AI 部署提供了参考。","theme_primary":"7. Compiler / tensor IR / operator generation","theme_secondary":"4. RISC-V custom ISA / open ISA AI extension","title":"A Heterogeneous CNN Compilation Framework for RISC-V CPU and NPU Integration Based on ONNX-MLIR","venue":"IEEE-TCAD","workstream_fit":"2","year":2025}}
+tokens used
+78,929

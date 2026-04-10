@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
-  echo "Usage: $0 <analysis-json> [paper-json]" >&2
+if [ "$#" -lt 1 ] || [ "$#" -gt 3 ]; then
+  echo "Usage: $0 <analysis-json> [paper-json] [out-dir]" >&2
   exit 2
 fi
 
@@ -12,7 +12,19 @@ SKILL_ROOT="$ROOT/skill/codex/paper-json-review"
 ANALYSIS_JSON="$1"
 PAPER_JSON="${2:-}"
 STEM="$(basename "$ANALYSIS_JSON" .json)"
-OUT_DIR="/root/opencute/slides/2026.04_todo_yjp-ktbg/workspace/llm_get_point/gpt5.4"
+# Derive OUT_DIR: from arg3, or from analysis-json parent's sibling gpt5.4, or default
+if [ "$#" -ge 3 ] && [ -n "$3" ]; then
+  OUT_DIR="$3"
+else
+  # If analysis is under corpus/llm/glm5.1, output goes to sibling gpt5.4
+  ANALYSIS_DIR="$(dirname "$ANALYSIS_JSON")"
+  PARENT_DIR="$(dirname "$ANALYSIS_DIR")"
+  if [ "$(basename "$PARENT_DIR")" = "llm" ] && [ -d "$PARENT_DIR/gpt5.4" ]; then
+    OUT_DIR="$PARENT_DIR/gpt5.4"
+  else
+    OUT_DIR="$ANALYSIS_DIR"
+  fi
+fi
 OUT_REVIEW="$OUT_DIR/$STEM.review.json"
 OUT_REVISED="$OUT_DIR/$STEM.revised.json"
 BUNDLE_FILE="/tmp/$STEM.review_bundle.json"

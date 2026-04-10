@@ -1,0 +1,1 @@
+claude -p /analyze-paper-claude /root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.json --output-format text --no-session-persistence --allowedTools Read,Grep,Glob,Bash --add-dir /root/opencute/workspace/survey

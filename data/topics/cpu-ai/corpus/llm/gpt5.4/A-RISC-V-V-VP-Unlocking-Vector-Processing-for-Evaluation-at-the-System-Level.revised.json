@@ -2,52 +2,52 @@
   "authors": "Manfred Schlägl, Moritz Stockinger, Daniel Große",
   "contributions": [
     {
+      "evidence": "In this paper we introduce the first free- and open-source SystemC TLM based RISC-V Virtual Prototype (VP) with support for the RISC-V \"V\" Vector Extension (RVV) Version 1.0.",
+      "point": "首个支持 RVV Version 1.0 的开源 SystemC TLM 虚拟原型 RISC-V VP++"
+    },
+    {
       "evidence": "Leveraging code generation for over 20k of the total 23k+ Lines of Code (LoC) required to integrate the 600+ RVV instructions, the potential for implementation errors and maintenance overhead is greatly reduced.",
-      "point": "将 RVV Version 1.0 集成到开源 SystemC TLM RISC-V 虚拟原型中，并用代码生成覆盖绝大多数新增实现代码。"
+      "point": "利用自动化代码生成高效集成 624 条 RVV 指令，显著降低大规模实现的人工工作量与维护开销"
     },
     {
       "evidence": "In total, we get 26, 936 out of 33, 076 basic coverage points for RVV, which corresponds to a coverage of 81.44%.",
-      "point": "构建了 RVV 验证链，使用 FORCE-RISCV 生成测试，并报告了基于 riscvOVPsim 的功能覆盖率结果。"
+      "point": "构建了基于 FORCE-RISCV、Handcar 和 riscvOVPsim 的 RVV 验证流程，并达到 81.44% 功能覆盖率"
     },
     {
-      "evidence": "In fact, the number of execution cycles depends on the RVV register length VLEN and the number of lanes for parallel processing and hence both become parameters.",
-      "point": "提出了基于 VLEN 与 Lanes 参数化的 RVV 指令执行周期模型，用于系统级性能评估。"
-    },
-    {
-      "evidence": "For RVV micro-architectures, we can state (i) that larger registers (VLEN) or more computational units (Lanes) do not automatically lead to a linear increase in performance, and (ii) that special attention should be paid to the memory interface.",
-      "point": "通过 PNG Average 与 MAC_32_16_16 两个案例展示了该 VP 对 RVV 微架构设计评估的价值，并指出内存接口是重要约束。"
+      "evidence": "We show that by comparing the number of simulated execution cycles, we can derive valuable assessments for the design of RVV micro-architectures.",
+      "point": "引入参数化 RVV 执行周期模型，并通过案例研究展示其系统级微架构评估能力"
     }
   ],
   "doi": "10.23919/DATE58400.2024.10546838",
   "gap_identified": [
     {
-      "evidence": "Although this value is already promising, there is still potential for improvement. However, they are left for future work and could for example include: (i) increasing the number of generated test cases, (ii) defining more sophisticated FORCE-RISCV test templates for RVV, (iii) integrating fuzzing techniques in FORCE-RISCV, or (iv) investigating the application of metamorphic testing methods [20].",
-      "gap": "论文报告的 RVV 功能覆盖率为 81.44%，作者明确指出仍有提升空间，说明验证完备性尚未闭合。",
-      "relevance_to_cute": "这提示 CUTE 若扩展到自定义向量或矩阵指令，需要同步规划更强的验证策略，而不能只依赖基础随机测试。"
+      "evidence": "However, they are left for future work and could for example include: (i) increasing the number of generated test cases, (ii) defining more sophisticated FORCE-RISCV test templates for RVV, (iii) integrating fuzzing techniques in FORCE-RISCV, or (iv) investigating the application of metamorphic testing methods [20].",
+      "gap": "当前 RVV 验证覆盖率为 81.44%，仍有进一步提升空间，论文也明确将更强测试模板、模糊测试和变形测试留作未来工作。",
+      "relevance_to_cute": "如果 CUTE 后续基于 RVV 或类似 ISA 扩展开展实现工作，这提示验证方法仍需加强，尤其是测试生成与覆盖率提升方面。"
     },
     {
-      "evidence": "In fact, the number of execution cycles depends on the RVV register length VLEN and the number of lanes for parallel processing and hence both become parameters.",
-      "gap": "执行周期模型只显式参数化了 VLEN 和 Lanes，尚未覆盖更复杂的缓存、流水线和层次化存储行为。",
-      "relevance_to_cute": "对于 CUTE 这类涉及矩阵单元、数据流与片上存储协同的设计，仅以 VLEN 和并行通道数建模仍然过于粗粒度，但可作为早期框架起点。"
+      "evidence": "The GUI-VP from [12] already provides a simple instruction accurate timing model that just assigns each instruction a fixed number of execution cycles.",
+      "gap": "本文 VP 采用的是简单、参数化的指令精确周期模型，未进一步建模更细粒度的流水线、缓存和复杂存储层次行为。",
+      "relevance_to_cute": "若 CUTE 需要评估更复杂的 CPU 内部扩展或数据通路，这说明仅靠简单周期模型可能不足，可能需要更精细的性能建模。"
     },
     {
       "evidence": "We present non-vectorized and vectorized variants of two common algorithms which are executed on the VP with varying parameters.",
-      "gap": "案例研究仅覆盖两个通用算法，尚未展示 AI/ML 工作负载上的系统级评估。",
-      "relevance_to_cute": "若要支撑 CUTE 面向 AI 推理的研究目标，后续需要在类似 VP 中加入矩阵乘、注意力或量化算子等更贴近 AI 的工作负载。"
+      "gap": "案例研究只覆盖 PNG Average 和 MAC_32_16_16 两类算法，未覆盖 GEMM、卷积或 Transformer 等 AI 典型工作负载。",
+      "relevance_to_cute": "这意味着该文更多证明了 RVV VP 的系统级评估能力，而不是直接回答 AI 推理关键算子的性能表现，相关实验空白仍需补充。"
     }
   ],
   "is_close_baseline_to_cute": false,
-  "key_results": "论文在两个案例上展示了系统级评估结果：对于 PNG Average，最大加速为 3.996，出现在 32 Lanes；对于 MAC_32_16_16，最大加速为 3.566，出现在 VLEN 512 和 2048 Lanes。论文同时指出该加速并不随 VLEN 或 Lanes 线性增长，在 MAC_32_16_16 中一个原因是模型中内存访问被限制为 64 bits。验证方面，论文报告获得 26,936 / 33,076 个 basic coverage points，对应 81.44% 覆盖率。",
-  "key_technique": "核心技术是在 SystemC TLM RISC-V VP 中集成 RVV v1.0：一方面通过自动代码生成扩展指令解码和操作选择部分，论文报告 RV32 与 RV64 ISS 各自生成超过 10,400 行代码、合计超过 20,800 行；另一方面在执行阶段采用通用 vLoop 机制，并通过 elem_sel_t 与 param_sel_t 参数化不同 RVV 指令的宽化、符号属性和操作数类型。验证方面，论文使用 FORCE-RISCV 生成 6,300 个测试用例，借助 Handcar 进行 trace 输出比对，并用 riscvOVPsim 统计功能覆盖率。",
+  "key_results": "论文报告：PNG Average 在 32 Lanes 时达到最大 3.996 倍加速，继续增大 VLEN 或 Lanes 不再提升；MAC_32_16_16 在 VLEN=512、2048 Lanes 时达到最大 3.566 倍加速，且受 64-bit 内存访问限制影响未呈线性增长。验证部分达到 81.44% 覆盖率（26,936/33,076 覆盖点）。",
+  "key_technique": "论文将 RVV 集成到既有 SystemC TLM RISC-V VP 中，围绕 ISS 的 InsDec、OpSel 和 Exec 三阶段完成扩展。Exec 阶段用通用 vLoop 以及 elem_sel_t、param_sel_t 等参数化机制复用实现多类 RVV 指令；InsDec 和 OpSel 阶段则通过 Python 代码生成器自动生成，其输入是描述指令格式的 Command Table 和描述 624 条 RVV 指令的 Operation Table。论文还构建了基于 FORCE-RISCV、Handcar 与 riscvOVPsim 的验证流程，并加入以 VLEN 和 Lanes 为参数的指令精确执行周期模型用于系统级评估。",
   "proposal_evidence": {
-    "for_feasibility": "该论文提供了工程可行性的直接证据：作者完成了 600+ RVV 指令的集成，并通过代码生成处理了超过 20,800 行实现代码；实验上，在 PNG Average 和 MAC_32_16_16 两个案例中分别观察到 3.996 和 3.566 的最大加速，同时给出了 81.44% 的功能覆盖率结果。这些结果可以支撑“构建可运行、可验证的向量扩展评估平台是可行的”，但不应直接外推为 AI 推理性能结论。",
-    "for_gap": "论文一方面只评估了两个通用算法，另一方面明确指出 RVV 微架构设计中需要特别关注 memory interface。这可以支撑一个较保守的 gap 论述：现有 RVV 系统级评估平台已经能做基础向量工作负载分析，但在 AI 工作负载覆盖和存储系统联合优化方面仍有明显空白。",
-    "for_state_of_art": "该论文可作为 RVV 系统级评估工具现状的代表性工作：作者声称其 VP 是已知唯一支持 RVV 且具备 instruction-accurate execution cycle model 的开源 SystemC VP。对开题报告而言，它适合用来说明当前开源 RVV 平台已经能够支持系统级向量评估，但主要仍聚焦通用 RVV 工作负载。"
+    "for_feasibility": "该论文表明，大规模 ISA 扩展可以借助代码生成较高效地集成到现有 VP 中：论文针对 RV32/RV64 ISS 分别生成了 over 10,400 lines of code，总计 over 20,800 lines of generated code，并配合约 2,500 LoC 的手写 Exec 实现完成 RVV 支持。其参数化执行周期模型和验证流程也说明，类似平台可用于较早阶段比较不同微架构参数对性能的影响。但这些结果应理解为方法与流程可借鉴，而非直接证明 CUTE 方案本身已被验证。",
+    "for_gap": "论文显示，本文 VP 的系统级评估仍建立在简单、参数化的指令精确周期模型之上，未涉及更细粒度的流水线和存储层次建模；同时案例研究仅覆盖 PNG Average 与 MAC_32_16_16，尚未延伸到 GEMM、卷积等 AI 核心算子。另一个直接观察是，当 memory accesses are limited to 64 bits 时，MAC 的加速不会随并行度线性增长，这提示后续研究需要同时关注计算与内存接口。",
+    "for_state_of_art": "该论文提出了据作者所称“the only open-source, SystemC based VP that supports RVV and an instruction-accurate execution cycle model”的 RVV 增强型 VP，代表了 RVV 系统级评估基础设施的重要进展。论文还展示了通过代码生成整合 600+ RVV 指令以及用参数化周期模型比较不同 VLEN/Lanes 配置的方法。就本文范围而言，其评估对象仍限于两类常见算法，未覆盖 AI 典型算子。"
   },
-  "research_purpose": "本文提出首个支持 RISC-V “V” 向量扩展（RVV）Version 1.0 的开源 SystemC TLM 虚拟原型，并将 RVV 集成到既有 GUI-VP 中形成 RISC-V VP++，用于向量处理的系统级评估与早期微架构探索。",
-  "research_significance": "该工作补上了开源 SystemC RISC-V VP 对 RVV 的支持，并通过一个简单、可参数化、指令精确的执行周期模型，使研究者能够在系统级比较非向量化与向量化实现，从而为 RVV 微架构设计提供早期评估依据。",
+  "research_purpose": "本文提出了首个支持 RISC-V 向量扩展（RVV）Version 1.0 的开源 SystemC TLM 虚拟原型（Virtual Prototype），旨在为 RVV 微架构设计提供系统级评估平台。通过将 624 条 RVV 指令集成到已有 VP 中，并引入参数化的执行周期模型，使设计者能够在早期阶段通过仿真周期数对比来评估不同 RVV 微架构配置的性能表现。",
+  "research_significance": "该工作将 RVV 支持引入开源 SystemC TLM RISC-V VP，并结合代码生成与验证流程，为 RVV 的软硬件协同开发和早期架构探索提供了可复用基础设施。论文报告其验证覆盖率达到 81.44%，并通过案例研究说明该 VP 可用于观察 VLEN 和 Lane 数量对算法执行周期的影响，从而为 RVV 系统级评估提供参考。",
   "theme_primary": "3. Vector extension / RVV / vector AI enhancement",
-  "theme_secondary": "7. Compiler / tensor IR / operator generation",
+  "theme_secondary": null,
   "title": "A RISC-V \"V\" VP: Unlocking Vector Processing for Evaluation at the System Level",
   "venue": "DATE",
   "workstream_fit": "2",

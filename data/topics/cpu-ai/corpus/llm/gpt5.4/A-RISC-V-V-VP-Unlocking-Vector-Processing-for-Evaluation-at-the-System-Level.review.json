@@ -1,179 +1,165 @@
 {
   "checks": {
     "evidence_quotes": "mixed",
-    "metadata": "mixed",
-    "numeric_claims": "mixed",
+    "metadata": "pass",
+    "numeric_claims": "pass",
     "schema": "pass",
     "semantic_grounding": "mixed",
-    "taxonomy_mapping": "pass"
+    "taxonomy_mapping": "mixed"
   },
   "confidence": "high",
   "field_reviews": [
     {
       "field": "research_purpose",
       "paper_evidence": "In this paper, we extend the GUI-VP with RVV Version 1.0 resulting in RISC-V VP++ which is available on GitHub1.",
-      "reason": "研究目标与摘要及引言一致，准确概括了将 RVV v1.0 集成到开源 SystemC TLM VP 并用于系统级评估。",
+      "reason": "该字段准确概括了论文目标，即为支持 RVV 1.0 的 VP 提供系统级评估能力，并通过参数化周期模型做早期微架构评估。",
       "severity": "minor",
       "status": "supported",
       "suggested_fix": "保持不变"
     },
     {
       "field": "research_significance",
-      "paper_evidence": "We show that by integrating a simple, parametrizable instruction-accurate execution cycle model, and comparing the execution of non-vectorized with vectorized implementations, valuable assessments can be derived for the design of RVV micro-architectures.",
-      "reason": "对系统级评估与早期架构探索价值的总结基本贴合原文，没有明显夸大。",
+      "paper_evidence": "To the best of our knowledge, the VP presented in this paper is the only open-source, SystemC based VP that supports RVV and an instruction-accurate execution cycle model.",
+      "reason": "“填补开源 SystemC 生态中 RVV 支持的空白”与论文表述基本一致，但“证明了方案的可行性与可靠性”“对 RVV 微架构设计具有指导价值”略强于原文，宜改为更保守表述。",
       "severity": "minor",
-      "status": "supported",
-      "suggested_fix": "保持不变"
+      "status": "partially_supported",
+      "suggested_fix": "将“证明了方案的可行性与可靠性”改为“表明该实现和验证流程具备可用性”，将“具有指导价值”改为“可用于提供系统级评估参考”"
     },
     {
       "field": "contributions",
-      "paper_evidence": "Leveraging code generation for over 20k of the total 23k+ Lines of Code (LoC) required to integrate the 600+ RVV instructions, the potential for implementation errors and maintenance overhead is greatly reduced.",
-      "reason": "四条贡献点总体都能由原文支撑，且 evidence 基本可定位到论文原句。",
+      "paper_evidence": "In this paper we introduce the first free- and open-source SystemC TLM based RISC-V Virtual Prototype (VP) with support for the RISC-V \"V\" Vector Extension (RVV) Version 1.0.",
+      "reason": "四条贡献点都能在论文中找到直接支撑，且证据字段均为英文原文。",
       "severity": "minor",
       "status": "supported",
       "suggested_fix": "保持不变"
     },
     {
       "field": "theme_primary",
-      "paper_evidence": "The ratified Version 1.0 of RVV is specified in [13]. Essential parts added to the RISC-V programming model by RVV are: (i) 32 Vector registers, (ii) 7 Control and Status Registers (CSRs), and (iii) 624 instructions.",
-      "reason": "论文核心聚焦 RVV 向量扩展虚拟原型与向量微架构评估，主主题分类正确。",
-      "severity": "minor",
-      "status": "supported",
-      "suggested_fix": "保持不变"
+      "paper_evidence": "信息不足，无法从文本中提取",
+      "reason": "主题方向判断基本正确，但原值不符合允许枚举，必须规范到合同定义中的精确字符串。",
+      "severity": "major",
+      "status": "incorrect",
+      "suggested_fix": "改为 `3. Vector extension / RVV / vector AI enhancement`"
     },
     {
       "field": "theme_secondary",
-      "paper_evidence": "For the RV32 and RV64 ISS, over 10, 400 lines of code are generated each. This totals to over 20, 800 lines of generated code.",
-      "reason": "论文确实包含代码生成，但重点不是编译器或算子生成；作为次主题可接受，但证据较弱。",
-      "severity": "minor",
-      "status": "partially_supported",
-      "suggested_fix": "可保留为次主题，但不要将论文表述为编译器工作"
+      "paper_evidence": "信息不足，无法从文本中提取",
+      "reason": "论文核心是 RVV 虚拟原型与系统级评估，并非自定义 ISA 扩展，也未聚焦 AI 扩展设计；当前 secondary theme 贴合度不足。",
+      "severity": "major",
+      "status": "incorrect",
+      "suggested_fix": "改为 null"
     },
     {
       "field": "workstream_fit",
-      "paper_evidence": "To the best of our knowledge, the VP presented in this paper is the only open-source, SystemC based VP that supports RVV and an instruction-accurate execution cycle model.",
-      "reason": "论文属于 RVV 向量扩展与 RISC-V ISA 评估工具，映射到 workstream 2 合理。",
+      "paper_evidence": "We show that by integrating a simple, parametrizable instruction-accurate execution cycle model, and comparing the execution of non-vectorized with vectorized implementations, valuable assessments can be derived for the design of RVV micro-architectures.",
+      "reason": "论文聚焦 RVV 向量扩展与系统级评估，归入工作流 2 合理。",
       "severity": "minor",
       "status": "supported",
       "suggested_fix": "保持不变"
     },
     {
       "field": "is_close_baseline_to_cute",
-      "paper_evidence": "To the best of our knowledge, the VP presented in this paper is the only open-source, SystemC based VP that supports RVV and an instruction-accurate execution cycle model.",
-      "reason": "论文是 RVV 系统级评估平台，不是 CPU 内核矩阵扩展或 in-core accelerator，设为 false 正确。",
+      "paper_evidence": "信息不足，无法从文本中提取",
+      "reason": "该论文不是矩阵扩展、核内 AI 加速器或直接 CPU 张量基线，设为 false 合理。",
       "severity": "minor",
       "status": "supported",
       "suggested_fix": "保持不变"
     },
     {
       "field": "key_technique",
-      "paper_evidence": "Handcar is based on the widespread Spike [14] simulator and has been extended to generate trace output. For each instruction executed, all memory and register accesses (reads and writes) are logged as a separate line of the trace.",
-      "reason": "前半段关于 code generation、vLoop、elem_sel_t 和 param_sel_t 有依据，但“以 Handcar 参考模拟器进行 trace 比对，并以 riscvOVPsim 计算功能覆盖率”比原文更具体，且原文并未把 Handcar 与 riscvOVPsim并列描述为一个统一 methodology 结论句。",
-      "severity": "major",
-      "status": "partially_supported",
-      "suggested_fix": "保留代码生成与参数化执行模型描述；验证链改写为更保守的“使用 FORCE-RISCV 生成测试，借助 Handcar 进行 trace 比对，并用 riscvOVPsim 统计覆盖率”"
+      "paper_evidence": "The code generator is implemented in Python and takes two inputs: (i) a Command Table, that describes the Vector Instruction Formats as defined in RVV spec Section 5 [13], and (ii) a Operation Table, that describes the 624 RVV instructions, where each entry refers to an entry in the Command Table.",
+      "reason": "该字段对 InsDec/OpSel/Exec 三阶段、代码生成输入表、vLoop 参数化实现、验证链和参数化周期模型的描述均可在正文找到依据。",
+      "severity": "minor",
+      "status": "supported",
+      "suggested_fix": "保持不变"
     },
     {
       "field": "key_results",
-      "paper_evidence": "For PNG Average we see that the maximum acceleration of 3.996 is reached with 32 Lanes. For MAC_32_16_16, we see a maximum acceleration of 3.566 with VLEN 512 and 2048 Lanes.",
-      "reason": "核心结果方向正确，但将 3.996 和 3.566 改写为带乘号的“3.996×/3.566×”，以及“最高加速比”表达需要严格贴合原文；另外 2048 是 Lanes 数，不应误读为“VLEN=512, 2048 Lanes”的并列单位混乱。",
-      "severity": "major",
-      "status": "partially_supported",
-      "suggested_fix": "将结果改写为论文原文数值写法，并保留 64 bits 内存访问限制与 81.44% 覆盖率"
+      "paper_evidence": "For PNG Average we see that the maximum acceleration of 3.996 is reached with 32 Lanes. Further acceleration with a larger VLEN or more Lanes is not possible.",
+      "reason": "关键结果中的加速比、配置、64-bit 内存接口限制和 81.44% 覆盖率均与论文一致。",
+      "severity": "minor",
+      "status": "supported",
+      "suggested_fix": "保持不变"
     },
     {
       "field": "gap_identified",
-      "paper_evidence": "We present non-vectorized and vectorized variants of two common algorithms which are executed on the VP with varying parameters.",
-      "reason": "前两条 gap 基本成立，但第 1 条 evidence 不是逐字引文，第 3 条 evidence 使用了省略号拼接两个句子，不符合 direct quote 要求。",
-      "severity": "major",
+      "paper_evidence": "However, they are left for future work and could for example include: (i) increasing the number of generated test cases, (ii) defining more sophisticated FORCE-RISCV test templates for RVV, (iii) integrating fuzzing techniques in FORCE-RISCV, or (iv) investigating the application of metamorphic testing methods [20].",
+      "reason": "三个 gap 总体基于论文可成立，但第一个 evidence 不是逐字精确引用；此外对 CUTE 的关联属于合理外推，宜保持克制。",
+      "severity": "minor",
       "status": "partially_supported",
-      "suggested_fix": "将所有 evidence 改为逐字原文；第 3 条改用摘要中“two common algorithms”作为直接证据"
+      "suggested_fix": "将第一个 evidence 改为论文中的逐字句子，并保守表述与 CUTE 的关联"
     },
     {
       "field": "proposal_evidence.for_state_of_art",
       "paper_evidence": "To the best of our knowledge, the VP presented in this paper is the only open-source, SystemC based VP that supports RVV and an instruction-accurate execution cycle model.",
-      "reason": "“首个支持 RVV v1.0 的开源 SystemC TLM 虚拟原型”有原文依据，但“被引 12 次、说明其影响力”不来自论文正文。",
-      "severity": "major",
+      "reason": "“系统级仿真评估的前沿工作”与“唯一支持 RVV 1.0 的开源 SystemC TLM 虚拟原型”大体有据，但“AI 工作负载上的评估尚属空白”是从案例范围推出的推断，宜明确为论文未覆盖而非领域绝对空白。",
+      "severity": "minor",
       "status": "partially_supported",
-      "suggested_fix": "删除被引次数与影响力判断，仅保留论文直接支持的 state-of-the-art 描述"
+      "suggested_fix": "改为“论文未评估 GEMM、卷积等 AI 典型算子，至少在该文范围内仍为空缺”"
     },
     {
       "field": "proposal_evidence.for_gap",
-      "paper_evidence": "For RVV micro-architectures, we can state (i) that larger registers (VLEN) or more computational units (Lanes) do not automatically lead to a linear increase in performance, and (ii) that special attention should be paid to the memory interface.",
-      "reason": "关于缺少 AI 工作负载和内存接口瓶颈的提炼基本能从论文推导出来，且与 proposal 写作相关。",
-      "severity": "minor",
-      "status": "supported",
-      "suggested_fix": "保持不变，但措辞维持“可支撑 gap 讨论”而非“直接证明”"
+      "paper_evidence": "The GUI-VP from [12] already provides a simple instruction accurate timing model that just assigns each instruction a fixed number of execution cycles.",
+      "reason": "关于“简单周期模型”和“内存接口值得关注”有依据，但“现有开源 RVV 仿真平台仅提供简单模型”范围过大，论文只直接论述本文 VP/相关 VP。",
+      "severity": "major",
+      "status": "partially_supported",
+      "suggested_fix": "将表述收缩为“本文 VP 采用简单、参数化的指令精确周期模型，未建模更细粒度微架构行为”"
     },
     {
       "field": "proposal_evidence.for_feasibility",
-      "paper_evidence": "For PNG Average we see that the maximum acceleration of 3.996 is reached with 32 Lanes. For MAC_32_16_16, we see a maximum acceleration of 3.566 with VLEN 512 and 2048 Lanes.",
-      "reason": "“3.5–4.0×”“2.5k LoC 手写 vs 20k+ 自动生成”属于二次概括，其中 4.0× 和 2.5 的数字形式并非论文原文；“对 AI 推理加速具有实际潜力”也超出了本文实验覆盖范围。",
-      "severity": "major",
+      "paper_evidence": "For the RV32 and RV64 ISS, over 10, 400 lines of code are generated each. This totals to over 20, 800 lines of generated code. Compared to the about 2, 500 lines of hand-written code for the Exec stage, this is a significant saving in terms of effort.",
+      "reason": "该字段引用的代码生成、参数化模型和验证链都有依据，作为对 CUTE 可行性的借鉴性证据基本成立；但应避免把论文结果直接等同于 CUTE 已被验证。",
+      "severity": "minor",
       "status": "partially_supported",
-      "suggested_fix": "改为保守表述：论文在两个非 AI 算法上观察到 3.996 和 3.566 的最大加速，并展示了大规模 RVV 集成与验证流程的工程可行性"
+      "suggested_fix": "保持“可借鉴/可参考”的措辞，不要写成直接证明 CUTE 可行"
     }
   ],
   "issues": [
     {
-      "field": "gap_identified[2].evidence",
-      "paper_evidence": "We present non-vectorized and vectorized variants of two common algorithms which are executed on the VP with varying parameters.",
-      "problem": "evidence 通过省略号拼接两段不同位置文本，不是论文中的逐字直接引文。",
-      "recommended_action": "改为使用摘要中的直接引文，支撑“案例研究仅覆盖两个算法”这一更保守结论",
-      "severity": "major"
-    },
-    {
-      "field": "proposal_evidence.for_state_of_art",
+      "field": "theme_primary",
       "paper_evidence": "信息不足，无法从文本中提取",
-      "problem": "加入“被引 12 次，说明其影响力”这一论文文本之外的信息，超出 source-paper grounding。",
-      "recommended_action": "删除被引次数和影响力判断",
+      "problem": "`theme_primary` 使用了不在合同枚举中的字符串，导致分类字段不合规。",
+      "recommended_action": "改为 `3. Vector extension / RVV / vector AI enhancement`。",
       "severity": "major"
     },
     {
-      "field": "proposal_evidence.for_feasibility",
-      "paper_evidence": "For PNG Average we see that the maximum acceleration of 3.996 is reached with 32 Lanes.",
-      "problem": "将实验结论外推到 AI 推理加速，并使用了论文中不存在的“4.0×”写法。",
-      "recommended_action": "仅保留论文直接报告的两个算法加速结果，不要扩展为 AI 推理结论",
+      "field": "theme_secondary",
+      "paper_evidence": "信息不足，无法从文本中提取",
+      "problem": "`theme_secondary` 将该文归为“RISC-V custom ISA / open ISA AI extension”不准确，论文并非自定义 ISA 或 AI 扩展设计论文。",
+      "recommended_action": "将 `theme_secondary` 置为 null。",
       "severity": "major"
     },
     {
       "field": "gap_identified[0].evidence",
-      "paper_evidence": "Although this value is already promising, there is still potential for improvement. However, they are left for future work and could for example include: (i) increasing the number of generated test cases, (ii) defining more sophisticated FORCE-RISCV test templates for RVV, (iii) integrating fuzzing techniques in FORCE-RISCV, or (iv) investigating the application of metamorphic testing methods [20].",
-      "problem": "evidence 少量改写了原文，不是逐字引用。",
-      "recommended_action": "替换为逐字原文",
+      "paper_evidence": "However, they are left for future work and could for example include: (i) increasing the number of generated test cases, (ii) defining more sophisticated FORCE-RISCV test templates for RVV, (iii) integrating fuzzing techniques in FORCE-RISCV, or (iv) investigating the application of metamorphic testing methods [20].",
+      "problem": "证据引文不是逐字命中，虽然语义接近，但不满足 evidence 字段应为直接英文引文的要求。",
+      "recommended_action": "替换为上面的逐字英文原文。",
       "severity": "minor"
     },
     {
-      "field": "key_results",
-      "paper_evidence": "For MAC_32_16_16, we see a maximum acceleration of 3.566 with VLEN 512 and 2048 Lanes.",
-      "problem": "数值写法被改写为“3.996×/3.566×”，与论文原文“3.996/3.566”不一致。",
-      "recommended_action": "恢复为论文原文数值写法",
-      "severity": "minor"
-    },
-    {
-      "field": "metadata.authors",
-      "paper_evidence": "Manfred Schlägl Moritz Stockinger Daniel Große",
-      "problem": "corpus metadata 只保留了第一作者，但论文首页正文清楚列出三位作者，当前 dossier 作者列表与论文首页一致。",
-      "recommended_action": "在 revised_analysis 中保留三位作者，并在 review 中注明 corpus metadata 截断问题",
-      "severity": "minor"
+      "field": "proposal_evidence.for_gap",
+      "paper_evidence": "The GUI-VP from [12] already provides a simple instruction accurate timing model that just assigns each instruction a fixed number of execution cycles.",
+      "problem": "把本文对自身/相关 VP 周期模型的讨论外推成“现有开源 RVV 仿真平台仅提供简单模型”，结论范围扩大。",
+      "recommended_action": "收缩论断范围，仅陈述本文 VP 所采用模型的能力边界。",
+      "severity": "major"
     }
   ],
   "overall_verdict": "major_revision",
   "ready_for_proposal_use": false,
   "review_target": {
-    "analysis_json_path": "/root/opencute/slides/2026.04_todo_yjp-ktbg/workspace/llm_get_point/glm5.1/A-RISC-V-V-VP-Unlocking-Vector-Processing-for-Evaluation-at-the-System-Level.json",
+    "analysis_json_path": "/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/llm/glm5.1/A-RISC-V-V-VP-Unlocking-Vector-Processing-for-Evaluation-at-the-System-Level.json",
     "analysis_title": "A RISC-V \"V\" VP: Unlocking Vector Processing for Evaluation at the System Level",
-    "paper_json_path": "/root/opencute/slides/2026.04_todo_yjp-ktbg/workspace/corpus/A-RISC-V-V-VP-Unlocking-Vector-Processing-for-Evaluation-at-the-System-Level.json",
+    "paper_json_path": "/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-RISC-V-V-VP-Unlocking-Vector-Processing-for-Evaluation-at-the-System-Level.json",
     "paper_title": "A RISC-V \"V\" VP: Unlocking Vector Processing for Evaluation at the System Level",
     "resolved_paper_by": "explicit_path"
   },
   "stats": {
-    "matched_evidence_quotes": 5,
-    "matched_numeric_claims": 13,
+    "matched_evidence_quotes": 6,
+    "matched_numeric_claims": 17,
     "missing_required_fields": [],
     "required_field_count": 17,
     "total_evidence_quotes": 7,
     "total_numeric_claims": 17
   },
-  "summary": "该 dossier 的整体方向基本正确，论文主题、主要贡献和大部分关键结论都能在原文中找到依据。主要问题在于个别 evidence 不是逐字原文、部分数值写法与论文不一致，以及 proposal_evidence 中加入了超出论文文本的外推。修正这些问题后可作为下游材料使用，但当前版本不宜直接用于开题论证。"
+  "summary": "该 dossier 整体与论文较为一致，研究目标、核心技术、实验数字和主要贡献大多有文本支撑。主要问题在于分类字段不合规且 secondary theme 失配，另外个别 proposal 导向表述有轻微外推，第一条 gap 的证据也不是逐字引文。修正这些问题后可作为下游使用基础，但当前版本仍需较大修改。"
 }

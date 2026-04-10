@@ -1,0 +1,432 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "review",
+    "revised_analysis"
+  ],
+  "properties": {
+    "review": {
+      "$ref": "#/$defs/reviewObject"
+    },
+    "revised_analysis": {
+      "$ref": "#/$defs/revisedAnalysisObject"
+    }
+  },
+  "$defs": {
+    "reviewTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "analysis_json_path",
+        "paper_json_path",
+        "analysis_title",
+        "paper_title",
+        "resolved_paper_by"
+      ],
+      "properties": {
+        "analysis_json_path": {
+          "type": "string"
+        },
+        "paper_json_path": {
+          "type": "string"
+        },
+        "analysis_title": {
+          "type": "string"
+        },
+        "paper_title": {
+          "type": "string"
+        },
+        "resolved_paper_by": {
+          "type": "string",
+          "enum": [
+            "explicit_path",
+            "doi",
+            "title_exact",
+            "filename_exact",
+            "manual"
+          ]
+        }
+      }
+    },
+    "passMixedFail": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "mixed",
+        "fail"
+      ]
+    },
+    "checksObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "metadata",
+        "evidence_quotes",
+        "semantic_grounding",
+        "taxonomy_mapping",
+        "numeric_claims"
+      ],
+      "properties": {
+        "schema": {
+          "$ref": "#/$defs/passMixedFail"
+        },
+        "metadata": {
+          "$ref": "#/$defs/passMixedFail"
+        },
+        "evidence_quotes": {
+          "$ref": "#/$defs/passMixedFail"
+        },
+        "semantic_grounding": {
+          "$ref": "#/$defs/passMixedFail"
+        },
+        "taxonomy_mapping": {
+          "$ref": "#/$defs/passMixedFail"
+        },
+        "numeric_claims": {
+          "$ref": "#/$defs/passMixedFail"
+        }
+      }
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "critical",
+        "major",
+        "minor"
+      ]
+    },
+    "fieldStatus": {
+      "type": "string",
+      "enum": [
+        "supported",
+        "partially_supported",
+        "unsupported",
+        "incorrect",
+        "format_error"
+      ]
+    },
+    "fieldReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "status",
+        "severity",
+        "reason",
+        "paper_evidence",
+        "suggested_fix"
+      ],
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/fieldStatus"
+        },
+        "severity": {
+          "$ref": "#/$defs/severity"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "paper_evidence": {
+          "type": "string"
+        },
+        "suggested_fix": {
+          "type": "string"
+        }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "severity",
+        "field",
+        "problem",
+        "paper_evidence",
+        "recommended_action"
+      ],
+      "properties": {
+        "severity": {
+          "$ref": "#/$defs/severity"
+        },
+        "field": {
+          "type": "string"
+        },
+        "problem": {
+          "type": "string"
+        },
+        "paper_evidence": {
+          "type": "string"
+        },
+        "recommended_action": {
+          "type": "string"
+        }
+      }
+    },
+    "statsObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_field_count",
+        "missing_required_fields",
+        "matched_evidence_quotes",
+        "total_evidence_quotes",
+        "matched_numeric_claims",
+        "total_numeric_claims"
+      ],
+      "properties": {
+        "required_field_count": {
+          "type": "integer"
+        },
+        "missing_required_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "matched_evidence_quotes": {
+          "type": "integer"
+        },
+        "total_evidence_quotes": {
+          "type": "integer"
+        },
+        "matched_numeric_claims": {
+          "type": "integer"
+        },
+        "total_numeric_claims": {
+          "type": "integer"
+        }
+      }
+    },
+    "reviewObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_target",
+        "overall_verdict",
+        "ready_for_proposal_use",
+        "confidence",
+        "summary",
+        "checks",
+        "field_reviews",
+        "issues",
+        "stats"
+      ],
+      "properties": {
+        "review_target": {
+          "$ref": "#/$defs/reviewTarget"
+        },
+        "overall_verdict": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "minor_revision",
+            "major_revision",
+            "reject"
+          ]
+        },
+        "ready_for_proposal_use": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "checks": {
+          "$ref": "#/$defs/checksObject"
+        },
+        "field_reviews": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fieldReview"
+          }
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/issue"
+          }
+        },
+        "stats": {
+          "$ref": "#/$defs/statsObject"
+        }
+      }
+    },
+    "contributionItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "point",
+        "evidence"
+      ],
+      "properties": {
+        "point": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "string"
+        }
+      }
+    },
+    "gapItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gap",
+        "evidence",
+        "relevance_to_cute"
+      ],
+      "properties": {
+        "gap": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "relevance_to_cute": {
+          "type": "string"
+        }
+      }
+    },
+    "proposalEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "for_state_of_art",
+        "for_gap",
+        "for_feasibility"
+      ],
+      "properties": {
+        "for_state_of_art": {
+          "type": "string"
+        },
+        "for_gap": {
+          "type": "string"
+        },
+        "for_feasibility": {
+          "type": "string"
+        }
+      }
+    },
+    "themeString": {
+      "type": "string",
+      "enum": [
+        "1. CPU-side AI acceleration / in-core accelerator",
+        "2. Matrix extension / AMX / SME",
+        "3. Vector extension / RVV / vector AI enhancement",
+        "4. RISC-V custom ISA / open ISA AI extension",
+        "5. LLM / Transformer / inference acceleration",
+        "6. Quantization / mixed precision / FP8 / BF16 / block scale / mx",
+        "7. Compiler / tensor IR / operator generation",
+        "8. Memory hierarchy / scratchpad / dataflow / systolic",
+        "9. HBM / advanced packaging / multi-node system"
+      ]
+    },
+    "revisedAnalysisObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "authors",
+        "year",
+        "venue",
+        "doi",
+        "research_purpose",
+        "research_significance",
+        "contributions",
+        "theme_primary",
+        "theme_secondary",
+        "workstream_fit",
+        "is_close_baseline_to_cute",
+        "key_technique",
+        "key_results",
+        "gap_identified",
+        "proposal_evidence"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "authors": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer"
+        },
+        "venue": {
+          "type": "string"
+        },
+        "doi": {
+          "type": "string"
+        },
+        "research_purpose": {
+          "type": "string"
+        },
+        "research_significance": {
+          "type": "string"
+        },
+        "contributions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/contributionItem"
+          },
+          "minItems": 2,
+          "maxItems": 5
+        },
+        "theme_primary": {
+          "$ref": "#/$defs/themeString"
+        },
+        "theme_secondary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/themeString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workstream_fit": {
+          "type": "string",
+          "enum": [
+            "1",
+            "2",
+            "3"
+          ]
+        },
+        "is_close_baseline_to_cute": {
+          "type": "boolean"
+        },
+        "key_technique": {
+          "type": "string"
+        },
+        "key_results": {
+          "type": "string"
+        },
+        "gap_identified": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/gapItem"
+          },
+          "minItems": 1,
+          "maxItems": 5
+        },
+        "proposal_evidence": {
+          "$ref": "#/$defs/proposalEvidence"
+        }
+      }
+    }
+  }
+}

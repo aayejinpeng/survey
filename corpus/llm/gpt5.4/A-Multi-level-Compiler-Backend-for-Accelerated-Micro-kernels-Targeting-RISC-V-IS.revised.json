@@ -1,0 +1,60 @@
+{
+  "authors": "Alexandre Lopoukhine, Federico Ficarelli, Christos Vasiladiotis, Anton Lydike, Josse Van Delm, Alban Dutilleul, Luca Benini, Marian Verhelst, Tobias Grosser",
+  "contributions": [
+    {
+      "evidence": "A low-level representation of the RISC-V ISA and Snitch\naccelerator extensions in a collection of SSA-based IRs\n(Sections 3.1 and 3.2).",
+      "point": "提出了基于SSA的多层级RISC-V ISA与Snitch加速器扩展IR表示，使用一组方言在不同抽象层级建模基础ISA与加速器语义。"
+    },
+    {
+      "evidence": "A multi-level and spill-free register allocator for structured\nbackend IRs (Section 3.3).",
+      "point": "设计了面向结构化后端IR的多层级、无溢出寄存器分配器。"
+    },
+    {
+      "evidence": "A progressive lowering from a high-level DSL down to the\naforementioned RISC-V SSA-based IRs (Section 3.4).",
+      "point": "实现了从高级DSL逐步lower到RISC-V SSA-based IR的渐进式编译流水线。"
+    },
+    {
+      "evidence": "show up to 90% floating-point unit\n(FPU) utilization across key DNN kernels.",
+      "point": "在Snitch目标上验证了该后端可为关键DNN微内核生成高效代码，论文报告最高可达90% FPU利用率；手写微内核结果见正文评估部分。"
+    }
+  ],
+  "doi": "10.1145/3696443.3708952",
+  "gap_identified": [
+    {
+      "evidence": "While the decision to exclude registers used for\nfunction arguments and results does not present a challenge\nfor kernels of similar characteristics to our chosen set, it\nmight become a concern for those with more involved fea-\ntures such as deeper loop nests.",
+      "gap": "当前寄存器分配策略排除了函数参数和返回值所占用的寄存器；论文指出这对更深层嵌套循环等更复杂内核可能成为问题。",
+      "relevance_to_cute": "这提示CUTE在面向更复杂矩阵/向量内核时，需要提前考虑扩展指令约束下的寄存器压力管理与相关优化。"
+    },
+    {
+      "evidence": "Our modular approach makes it easy to extend backends\nto target accelerators with custom ISA extensions, by lever-\naging shared abstractions and infrastructure.",
+      "gap": "论文展示了方法对自定义RISC-V加速器后端扩展的潜力，但实验验证集中在Snitch平台，对其他RISC-V AI扩展的泛化能力仍需后续实证。",
+      "relevance_to_cute": "这与CUTE验证面向RVV或矩阵扩展的编译后端可迁移性直接相关，可作为后续系统化评测的出发点。"
+    },
+    {
+      "evidence": "We select shape sizes to fit within the TCDM\n(Section 2.4) such that our performance measurements are\nnot influenced by the rest of the memory hierarchy.",
+      "gap": "实验刻意选择可放入TCDM的规模，以避免其他存储层次影响，因此对更大规模或更复杂内存层次下的表现仍缺少直接证据。",
+      "relevance_to_cute": "这对CUTE涉及片上存储、HBM或多级存储协同时很重要，说明编译器还需进一步考虑跨层次的数据分块与调度。"
+    },
+    {
+      "evidence": "Snitch’s in-order core and software-managed L1 cache\nmake its performance predictable, allowing us to build a\nsimple scheduling pipeline, obviating the need for expensive\nschedule space exploration.",
+      "gap": "当前调度方法依赖Snitch有序核与软件管理L1带来的可预测性；换到更复杂微架构时，这种简化调度未必仍然成立。",
+      "relevance_to_cute": "如果CUTE目标平台转向更复杂CPU核或不同内存系统，需要研究比静态确定性策略更一般的调度和代码生成方法。"
+    }
+  ],
+  "is_close_baseline_to_cute": false,
+  "key_results": "论文在Snitch上的评估显示：手写微内核最高达到95% FPU利用率，高级DSL生成的微内核最高达到90% FPU利用率；两条基于LLVM的对比流程峰值约为42%利用率。对于64-bit MatMul，吞吐率在较大规模下超过理论峰值的90%（≥1.80 FLOPs/cycle）；寄存器压力表显示32-bit MatMulT使用11/20个FP寄存器和12/15个整数寄存器。",
+  "key_technique": "核心技术是在MLIR/xDSL框架内构建多层级编译器后端：用一组SSA-based IR同时表示RISC-V基础ISA与Snitch加速器扩展；在结构化IR上执行多层级、spill-free寄存器分配；并将高层线性代数DSL逐步lower到面向Snitch扩展的低层IR和汇编代码。",
+  "proposal_evidence": {
+    "for_feasibility": "论文给出了明确可行性证据：其多层级后端在Snitch上可让关键DNN微内核达到最高90% FPU利用率，而LLVM对比流程峰值约42%；寄存器压力结果显示MatMulT场景下使用11/20个FP寄存器和12/15个整数寄存器；附录还说明代码以“Apache License version 2.0 with LLVM Exceptions”公开。",
+    "for_gap": "论文显示，复用LLVM后端的两条流程在Snitch上“both peaking at approximately 42% utilization”，说明传统通用后端难以有效利用该类自定义ISA扩展。同时，论文实现与评估聚焦Snitch，这意味着其方法在其他RISC-V AI扩展上的适用性仍需进一步验证。",
+    "for_state_of_art": "该论文发表于CGO 2025，是面向RISC-V自定义ISA扩展编译后端的代表性近期工作。论文自述“to the best of our knowledge”其方法是首个捕获加速器特定抽象、且采用self-contained代码生成方案的MLIR-based compiler backend。"
+  },
+  "research_purpose": "论文旨在突破传统编译器后端的“沙漏模型”信息瓶颈，提出一种多层级编译器后端架构，在不同抽象层级保留并利用领域特定信息，从高级DSL逐步lower到带有自定义ISA扩展的RISC-V加速器代码生成。",
+  "research_significance": "该工作展示了如何用多层级SSA IR与渐进式lowering为RISC-V自定义加速器构建更具表达力的后端。实验表明，这一方法在Snitch目标上的关键DNN微内核可达到最高90% FPU利用率，说明相较传统通用后端，结构化且面向目标特性的编译路径具有明显潜力。",
+  "theme_primary": "7. Compiler / tensor IR / operator generation",
+  "theme_secondary": "4. RISC-V custom ISA / open ISA AI extension",
+  "title": "A Multi-level Compiler Backend for Accelerated Micro-kernels Targeting RISC-V ISA Extensions",
+  "venue": "CGO",
+  "workstream_fit": "2",
+  "year": 2025
+}

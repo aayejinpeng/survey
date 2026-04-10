@@ -12,15 +12,18 @@
 | 3.5 | `slice_csv.py` | ✅ | 按 score 阈值截取 |
 | 4 | `review_server.py` + `review.html` | ✅ | Web 审阅，标记写回 CSV |
 | 5 | `sync_zotero.py` | ✅ | `pdfs/` |
-| 6 | `corpus_reviewer.py` | ✅ | Corpus 对照审阅 + 人工修订 |
-| 7 | `build_graph.py` | ⬜ | 引用图可视化 |
+| 6 | `extract_papers.py` | ✅ | `corpus/draft/*.json` |
+| 7 | `paper_review_pipeline.py` | ✅ | `corpus/llm/{glm5.1,gpt5.4}/*.json` |
+| 8 | `corpus_reviewer.py` | ✅ | Corpus 对照审阅 + 人工修订 |
+| 9 | `build_graph.py` | ⬜ | 引用图可视化 |
 
-## 当前数据（2026-04-08）
+## 当前数据（2026-04-10）
 
 - **14,600 篇论文**，103 个 venue×year CSV
 - **27 个会议** + **7 个期刊**，覆盖 2022-2026
 - **摘要覆盖率 92%**
 - CPU AI 主题：score >= 11 共 196 篇，12 篇已标记 keep
+- **Corpus 状态**：draft 语料已生成，pipeline 正在运行中
 
 ## 目录结构
 
@@ -38,14 +41,17 @@ survey/
 │       ├── top10/50/100.csv
 │       ├── doi-list.txt         # keep 论文的 DOI 列表
 │       └── corpus/              # LLM 分析语料
-│           ├── draft/           # GLM 原始提取
+│           ├── draft/           # Step 6: PDF 解析后的 draft JSON
 │           ├── llm/
-│           │   ├── glm5.1/      # GLM 提取结果 *.json
-│           │   └── gpt5.4/      # GPT 审查 + 修正
-│           └── human_review/    # 人工编辑保存
+│           │   ├── glm5.1/      # Step 7a: GLM 提取结果 *.json
+│           │   └── gpt5.4/      # Step 7b: GPT 审查 + 修正
+│           ├── human_review/    # Step 8: 人工编辑保存
+│           └── paper_review_pipeline/  # Pipeline 日志和状态
 ├── pdfs/                        # PDF 下载目录
 │   └── cpu-ai/                  # CPU AI 主题的 PDF 文件
-├── corpus_reviewer.py            # Step 6: Corpus 对照审阅 Web 服务
+├── extract_papers.py            # Step 6: PDF 解析为 draft JSON
+├── paper_review_pipeline.py     # Step 7: 双模型对抗生成 pipeline
+├── corpus_reviewer.py            # Step 8: Corpus 对照审阅 Web 服务
 ├── tools/
 │   └── s2_fetch.py              # S2 batch API 客户端
 ├── skill/
@@ -99,7 +105,16 @@ python3 export_dois.py \
     --input data/topics/cpu-ai/scored-score-gte11.csv \
     --output pdfs/cpu-ai/doi-list.txt
 
-# Step 6: 启动 Corpus 对照审阅（浏览器打开 http://localhost:5000）
+# Step 6: 从 PDF 生成 draft corpus JSON
+python3 extract_papers.py \
+    pdfs/cpu-ai/ \
+    data/topics/cpu-ai/scored-score-gte11.csv \
+    -o data/topics/cpu-ai/corpus/draft/
+
+# Step 7: 运行双模型对抗生成 pipeline
+python3 paper_review_pipeline.py --topic cpu-ai --limit 10
+
+# Step 8: 启动 Corpus 对照审阅（浏览器打开 http://localhost:5000）
 python3 corpus_reviewer.py --topic cpu-ai
 # 或指定其他 topic / port
 python3 corpus_reviewer.py --topic another-topic --port 8080
@@ -124,7 +139,12 @@ review_server.py → Web 审阅标记 (keep/core/skip)
       ↓
 sync_zotero.py → pdfs/  (从 Zotero 本地 API 拉 PDF)
       ↓
-server.py → Corpus 对照审阅 + 人工修订 (http://localhost:5000)
+extract_papers.py → corpus/draft/*.json  (PDF 解析 + CSV 元数据)
+      ↓
+paper_review_pipeline.py → corpus/llm/{glm5.1,gpt5.4}/*.json
+                           (双模型对抗生成：GLM 提取 → GPT 审查)
+      ↓
+corpus_reviewer.py → Corpus 对照审阅 + 人工修订 (http://localhost:5000)
 ```
 
 `--topic` 参数对应 `data/topics/` 下的子目录名，同时关联 `pdfs/{topic}/` 下的 PDF 文件。
@@ -175,7 +195,7 @@ keywords:
 
 ## Corpus 对照审阅工具
 
-`corpus_reviewer.py` 提供左右分栏的 Web 界面，用于对照查看 LLM 分析语料和原始 PDF，并支持人工修订。
+`corpus_reviewer.py` 提供左右分栏的 Web 界面，用于对照查看 LLM 分析语料和原始 PDF，并支持人工修订。这是 Step 8 的核心工具。
 
 ### 启动
 
@@ -188,7 +208,8 @@ python3 corpus_reviewer.py --topic <topic-name>
 
 ### 布局
 
-左半边为结构化 JSON 展示 / 编辑区，右半边为 PDF 阅读器。
+- **左半边**：结构化 JSON 展示 / 编辑区
+- **右半边**：PDF 阅读器
 
 ### 四个视图
 
@@ -201,6 +222,13 @@ python3 corpus_reviewer.py --topic <topic-name>
 | **GPT Revised** | `corpus/llm/gpt5.4/*.revised.json` | GPT 修正后的结构化分析（research、contributions、gaps） |
 | **Human Edit** | 基于 GPT Revised，保存到 `corpus/human_review/` | 可编辑表单，直接在 GPT 结果上修改并保存 |
 
+### 人工编辑工作流
+
+1. 先查看 **GPT Review** 了解审查意见和问题
+2. 参考 **GLM Extraction** 查看原始提取
+3. 查看 **GPT Revised** 获取修正后的版本
+4. 在 **Human Edit** 中进行最终编辑并保存
+
 ### 快捷键
 
 | 按键 | 功能 |
@@ -211,6 +239,239 @@ python3 corpus_reviewer.py --topic <topic-name>
 | `Ctrl+S` | 在 Human Edit 视图中保存 |
 
 编辑框内输入时方向键和数字键不触发导航。顶栏显示 saved/unsaved 状态。
+
+## Step 6: extract_papers.py — PDF 解析与 Draft Corpus 生成
+
+### 功能
+
+从 PDF 文件提取正文文本，并结合 CSV 中的元数据生成 draft corpus JSON。
+
+### 特性
+
+- **正文提取**：使用 PyMuPDF (fitz) 或 pdfplumber 提取 PDF 正文，在 References 章节停止
+- **噪声清理**：自动移除页眉、页脚、版权声明、DOI 行等噪声
+- **元数据合并**：从 CSV 中读取 title、authors、year、venue、doi、abstract、citation_count 等元数据
+- **批量处理**：支持批量处理整个 PDF 目录，输出为单独的 JSON 文件
+
+### 使用方式
+
+```bash
+python3 extract_papers.py \
+    pdfs/cpu-ai/ \
+    data/topics/cpu-ai/scored-score-gte11.csv \
+    -o data/topics/cpu-ai/corpus/draft/
+```
+
+### 输出格式
+
+每个 PDF 生成一个 JSON 文件：
+
+```json
+{
+  "file": "A-Heterogeneous-CNN-Compilation-Framework-for-RISC-V-CPU-and-NPU-Integration-Bas.pdf",
+  "title": "A Heterogeneous CNN Compilation Framework for RISC-V CPU and NPU Integration",
+  "authors": "Author1, Author2",
+  "year": 2024,
+  "venue": "Conference Name",
+  "doi": "10.xxx/xxxx",
+  "url": "https://...",
+  "abstract": "摘要内容",
+  "citation_count": "10",
+  "relevance_score": "15",
+  "relevance": "High",
+  "matched_keywords": "RISC-V, CNN, NPU",
+  "body_text": "从 PDF 提取的正文内容...",
+  "text_length": 15000,
+  "csv_matched": true,
+  "extraction_status": "success"
+}
+```
+
+### 为什么需要结构化的 Draft
+
+1. **标准化输入**：为后续的 LLM 分析提供统一的数据格式
+2. **元数据丰富**：CSV 中的结构化元数据（引用数、相关性评分）帮助 LLM 理解论文重要性
+3. **正文干净**：经过噪声清理的正文文本，减少 LLM 处理的干扰
+4. **可追溯**：保留提取状态（success/failed），便于问题排查
+
+## Step 7: paper_review_pipeline.py — 双模型对抗生成
+
+### 功能
+
+异步生产者-消费者 pipeline，自动完成 Claude 分析和 Codex 审查两阶段处理。
+
+### 架构设计
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    paper_review_pipeline.py                 │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────────────┐         ┌──────────────────┐          │
+│  │   Producer       │         │   Consumer       │          │
+│  │   (Claude)       │   ──→   │   (Codex)        │          │
+│  │                  │  Queue  │                  │          │
+│  │  • 读取 draft     │         │  • 读取 analysis │          │
+│  │  • 调用 Claude    │         │  • 调用 Codex    │          │
+│  │  • 保存 GLM       │         │  • 保存 review   │          │
+│  │    analysis.json │         │   + revised.json │          │
+│  └──────────────────┘         └──────────────────┘          │
+│         ↓                            ↓                      │
+│  corpus/llm/glm5.1/           corpus/llm/gpt5.4/            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 使用方式
+
+```bash
+# 基本用法：处理整个 corpus
+python3 paper_review_pipeline.py --topic cpu-ai
+
+# 限制处理数量
+python3 paper_review_pipeline.py --topic cpu-ai --limit 10
+
+# 指定特定论文
+python3 paper_review_pipeline.py --topic cpu-ai \
+    --papers data/topics/cpu-ai/corpus/draft/paper1.json \
+            data/topics/cpu-ai/corpus/draft/paper2.json
+
+# 重试失败的论文
+python3 paper_review_pipeline.py --topic cpu-ai \
+    --retry-failed-from runs/latest/summary.json
+
+# 严格串行模式（无 pipeline 重叠）
+python3 paper_review_pipeline.py --topic cpu-ai --strict-serial
+
+# Dry run（仅打印命令，不执行）
+python3 paper_review_pipeline.py --topic cpu-ai --dry-run
+```
+
+### 关键参数
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--topic` | 主题目录名 | `cpu-ai` |
+| `--limit` | 处理论文数量限制 | `null` (全部) |
+| `--papers` | 显式指定论文 JSON 路径 | - |
+| `--queue-size` | Pipeline 队列大小 | 1 |
+| `--strict-serial` | 禁用 pipeline 重叠 | `false` |
+| `--skip-existing` | 跳过已存在的结果 | `false` |
+| `--dry-run` | 仅打印命令不执行 | `false` |
+| `--retry-failed-from` | 从之前的失败记录重试 | - |
+| `--claude-timeout-sec` | Claude 超时时间 | 1800 |
+| `--codex-timeout-sec` | Codex 超时时间 | 3600 |
+
+### 输出结构
+
+```
+corpus/
+├── paper_review_pipeline/
+│   ├── claude/
+│   │   ├── {stem}.cmd.txt       # 命令行
+│   │   ├── {stem}.stdout.log    # 标准输出
+│   │   └── {stem}.stderr.log    # 错误输出
+│   ├── codex/
+│   │   ├── {stem}.cmd.txt
+│   │   ├── {stem}.stdout.log
+│   │   └── {stem}.stderr.log
+│   ├── status/
+│   │   ├── {stem}.claude.status.json  # 实时状态
+│   │   └── {stem}.codex.status.json
+│   └── runs/
+│       └── latest/
+│           ├── summary.json           # 运行摘要
+│           ├── failed_papers.json     # 失败论文列表
+│           └── failed_papers.txt      # 失败论文列表（纯文本）
+└── llm/
+    ├── glm5.1/
+    │   └── {stem}.json           # Claude 生成
+    └── gpt5.4/
+        ├── {stem}.review.json     # Codex 审查
+        └── {stem}.revised.json    # Codex 修正
+```
+
+### 为什么使用双模型对抗生成
+
+1. **降低幻觉风险**：第一个模型（Claude）负责生成，第二个模型（GPT）负责审查
+2. **专业性互补**：Claude 擅长长文本分析和结构化输出，GPT 擅长审查和修正
+3. **可追溯性**：保留原始生成、审查意见和修正版本，便于人工审核
+4. **质量保证**：通过结构化的审查格式，强制第二个模型检查特定维度
+
+### 容错与重试
+
+Pipeline 具备完善的容错机制：
+
+- **自动重试**：对可重试错误（rate limit、timeout）自动重试
+- **失败分类**：区分可重试失败和致命失败
+- **连续失败保护**：Codex 连续 N 次失败后自动停止
+- **状态持久化**：每个任务的状态实时写入 JSON，可断点续传
+
+### 阶段状态文件示例
+
+```json
+{
+  "stage": "claude",
+  "job_name": "paper.json",
+  "state": "running",
+  "pid": 12345,
+  "started_at_unix": 1712746800,
+  "elapsed_sec": 45.2,
+  "timeout_sec": 1800,
+  "cwd": "/root/opencute",
+  "command": ["claude", "-p", "/analyze-paper-claude ..."]
+}
+```
+
+## 结构化数据约束与人工干预
+
+### 为什么使用结构化数据
+
+1. **可验证性**：JSON Schema 可以自动验证格式，避免无效输出
+2. **可解析性**：程序可以直接读取和处理，无需二次解析
+3. **可追溯性**：每个字段都有明确的来源和含义
+4. **可扩展性**：可以灵活添加新字段而不破坏现有流程
+
+### 结构化约束的实施
+
+1. **输入约束**（draft JSON）
+   - 固定的字段名和类型
+   - 必填字段验证
+   - 枚举值约束（如 theme_primary、workstream_fit）
+
+2. **输出约束**（analysis JSON）
+   - JSON Schema 定义
+   - 字段长度限制
+   - 引文格式要求
+
+3. **审查约束**（review JSON）
+   - 预定义的检查项
+   - 标准化的严重程度分级
+   - 结构化的问题报告
+
+### 关键节点的人工干预
+
+1. **Web 审阅**（Step 4）
+   - 人工筛选高相关论文
+   - 标记核心论文、相关论文
+   - 添加个人笔记
+
+2. **Corpus 对照审阅**（Step 8）
+   - 查看 LLM 分析与原文的对照
+   - 修正错误的提取
+   - 补充遗漏的要点
+   - 标记不确定的内容
+
+3. **预检脚本**
+   - 自动检查结构合规性
+   - 验证引文存在性
+   - 检查枚举值有效性
+
+### 人工干预的价值
+
+1. **质量把关**：LLM 可能产生幻觉或过度推断
+2. **领域知识**：人工可以识别 LLM 无法理解的技术细节
+3. **上下文理解**：人工可以结合研究目标判断相关性
+4. **责任归属**：关键决策需要人工确认
 
 ## Skill 目录
 

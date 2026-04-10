@@ -21,7 +21,10 @@
 | 3.5 | — | ✅ 已实现 | `slice_csv.py` 按 score 阈值截取 |
 | 4 | [step4-review.md](step4-review.md) | ✅ 已实现 | Web 审阅界面，标记 keep/skip 并写回 CSV |
 | 5 | [step5-sync-zotero.md](step5-sync-zotero.md) | ✅ 已实现 | 从 Zotero 本地 API 同步 PDF |
-| 6 | [step6-build-graph.md](step6-build-graph.md) | ⬜ 计划中 | 引用图谱可视化 |
+| 6 | [step6-extract-papers.md](step6-extract-papers.md) | ✅ 已实现 | PDF 解析与 draft corpus 生成 |
+| 7 | [step7-paper-review-pipeline.md](step7-paper-review-pipeline.md) | ✅ 已实现 | 双模型对抗生成 pipeline |
+| 8 | [step8-corpus-review.md](step8-corpus-review.md) | ✅ 已实现 | Corpus 对照审阅 + 人工修订 |
+| 9 | [step6-build-graph.md](step6-build-graph.md) | ⬜ 计划中 | 引用图谱可视化 |
 
 ## 推荐阅读顺序
 
@@ -53,6 +56,12 @@ slice_csv.py → scored-score-gte{N}.csv
 review_server.py → Web 审阅标记 (keep/core/related/skip)
       ↓
 sync_zotero.py → pdfs/
+      ↓
+extract_papers.py → corpus/draft/*.json
+      ↓
+paper_review_pipeline.py → corpus/llm/{glm5.1,gpt5.4}/*.json
+      ↓
+corpus_reviewer.py → Corpus 对照审阅 + 人工修订
       ↓
 build_graph.py (计划中)
 ```

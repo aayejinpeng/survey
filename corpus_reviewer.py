@@ -87,6 +87,37 @@ def api_papers():
     return jsonify(_list_papers())
 
 
+@app.route("/api/papers_meta")
+def api_papers_meta():
+    """Return papers with title/venue/year for search."""
+    papers = _list_papers()
+    result = []
+    for p in papers:
+        entry = {"basename": p["basename"]}
+        # Try GLM raw first, then GPT revised
+        for model_name in ("glm5.1", "gpt5.4"):
+            for ftype in ("raw", "revised"):
+                fname = (p.get("models", {}).get(model_name, {}).get(ftype))
+                if not fname:
+                    continue
+                fpath = os.path.join(LLM_DIR, model_name, fname)
+                if os.path.isfile(fpath):
+                    try:
+                        with open(fpath, encoding="utf-8") as f:
+                            d = json.load(f)
+                        entry["title"] = d.get("title", "")
+                        entry["venue"] = d.get("venue", "")
+                        entry["year"] = d.get("year", "")
+                        entry["authors"] = d.get("authors", "")
+                    except Exception:
+                        pass
+                    break
+            if entry.get("title"):
+                break
+        result.append(entry)
+    return jsonify(result)
+
+
 @app.route("/api/json/<path:filepath>")
 def api_json(filepath):
     full = os.path.join(LLM_DIR, filepath)
@@ -218,11 +249,34 @@ textarea.ed-input{min-height:60px}
 .save-status{font-size:11px;color:#b8a89a}
 
 .empty-msg{color:#c4b5a5;text-align:center;padding-top:40vh;font-size:13px}
+
+/* Search button */
+.search-btn{background:none;border:1px solid #e8ddd4;border-radius:8px;padding:4px 10px;
+  cursor:pointer;font-size:13px;color:#7c6f64;white-space:nowrap;transition:all .15s}
+.search-btn:hover{background:#f5ebe0;border-color:#d4887a;color:#d4887a}
+
+/* Search overlay */
+.search-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,.4);z-index:1000;justify-content:center;padding-top:60px}
+.search-overlay.open{display:flex}
+.search-modal{width:640px;max-width:90vw;max-height:70vh;background:#fff;border-radius:12px;
+  overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.2);display:flex;flex-direction:column}
+.search-header{display:flex;align-items:center;border-bottom:1px solid #e8ddd4;padding:0}
+#searchInput{flex:1;padding:12px 16px;border:none;font-size:14px;outline:none;background:transparent}
+.search-hint{font-size:10px;color:#ccc;padding-right:12px;white-space:nowrap}
+.search-results{overflow-y:auto;flex:1}
+.si{padding:10px 16px;cursor:pointer;border-bottom:1px solid #f5ebe0;transition:background .1s}
+.si:hover{background:#f5ebe0}
+.si.active{background:#f0b4b4;color:#fff}
+.si-title{font-size:13px;font-weight:600;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.si-meta{font-size:11px;color:#b8a89a;margin-top:2px}
+.si.active .si-meta{color:rgba(255,255,255,.7)}
 </style>
 </head>
 <body>
 
 <div class="topbar">
+  <button class="search-btn" onclick="openSearch()" title="Search papers (/)">&#128269; List</button>
   <span class="paper-name" id="paperName"></span>
   <span class="counter" id="counter"></span>
   <span class="saved-badge no" id="savedBadge" style="display:none">unsaved</span>
@@ -239,6 +293,16 @@ textarea.ed-input{min-height:60px}
 <div class="main">
   <div class="left" id="leftPanel"><div class="empty-msg">Loading...</div></div>
   <div class="right" id="rightPanel"><div class="empty-msg">No PDF</div></div>
+</div>
+
+<div class="search-overlay" id="searchOverlay">
+  <div class="search-modal">
+    <div class="search-header">
+      <input type="text" id="searchInput" placeholder="Search by title, venue, author, year...">
+      <span class="search-hint">Esc to close</span>
+    </div>
+    <div class="search-results" id="searchResults"></div>
+  </div>
 </div>
 
 <script>
@@ -671,7 +735,8 @@ document.addEventListener('keydown',e=>{
     if((e.ctrlKey||e.metaKey)&&e.key==='s'){ e.preventDefault(); doSave(); }
     return;
   }
-  if(e.key==='ArrowLeft'&&pi>0){ e.preventDefault(); loadPaper(pi-1); }
+  if(e.key==='/'&&!e.ctrlKey&&!e.metaKey){ e.preventDefault(); openSearch(); }
+  else if(e.key==='ArrowLeft'&&pi>0){ e.preventDefault(); loadPaper(pi-1); }
   else if(e.key==='ArrowRight'&&pi<papers.length-1){ e.preventDefault(); loadPaper(pi+1); }
   else if(e.key==='ArrowUp'){ e.preventDefault(); switchView(vi>0?vi-1:VIEWS.length-1); }
   else if(e.key==='ArrowDown'){ e.preventDefault(); switchView(vi<VIEWS.length-1?vi+1:0); }
@@ -683,6 +748,56 @@ document.querySelectorAll('.vtab').forEach(t=>{
 });
 
 loadPapers();
+
+// ── Search Modal ──────────────────────────────────────────────────────────────
+let papersMeta=[], searchFiltered=[], searchIdx=0;
+
+async function openSearch(){
+  document.getElementById('searchOverlay').classList.add('open');
+  const inp=document.getElementById('searchInput');
+  inp.value=''; inp.focus();
+  if(!papersMeta.length){
+    papersMeta=await (await fetch('/api/papers_meta')).json();
+  }
+  searchIdx=0;
+  renderSearch('');
+}
+function closeSearch(){
+  document.getElementById('searchOverlay').classList.remove('open');
+}
+function jumpToPaper(bn){
+  closeSearch();
+  const idx=papers.findIndex(p=>p.basename===bn);
+  if(idx>=0) loadPaper(idx);
+}
+function renderSearch(q){
+  const ql=q.toLowerCase().trim();
+  searchFiltered=ql?papersMeta.filter(p=>{
+    const s=[p.basename,p.title||'',p.venue||'',p.authors||'',String(p.year||'')].join(' ').toLowerCase();
+    return s.includes(ql);
+  }):papersMeta;
+  searchIdx=Math.min(searchIdx,Math.max(searchFiltered.length-1,0));
+  const c=document.getElementById('searchResults');
+  if(!searchFiltered.length){c.innerHTML='<div style="padding:20px;text-align:center;color:#ccc">No results</div>';return;}
+  c.innerHTML=searchFiltered.map((p,i)=>{
+    const ac=i===searchIdx?' active':'';
+    const title=p.title||p.basename.replace(/-/g,' ');
+    const meta=[p.venue,p.year].filter(x=>x).join(' · ');
+    return '<div class="si'+ac+'" data-bn="'+esc(p.basename)+'" onmouseenter="searchIdx='+i+';renderSearch(document.getElementById(\'searchInput\').value)" onclick="jumpToPaper(\''+esc(p.basename).replace(/'/g,"\\'")+'\')">'
+      +'<div class="si-title">'+esc(title)+'</div>'
+      +(meta?'<div class="si-meta">'+esc(meta)+'</div>':'')
+      +'</div>';
+  }).join('');
+}
+
+document.getElementById('searchOverlay').addEventListener('click',e=>{if(e.target.id==='searchOverlay')closeSearch();});
+document.getElementById('searchInput').addEventListener('input',e=>{searchIdx=0;renderSearch(e.target.value);});
+document.getElementById('searchInput').addEventListener('keydown',e=>{
+  if(e.key==='Escape'){closeSearch();e.preventDefault();}
+  else if(e.key==='ArrowDown'){e.preventDefault();searchIdx=Math.min(searchIdx+1,searchFiltered.length-1);renderSearch(document.getElementById('searchInput').value);}
+  else if(e.key==='ArrowUp'){e.preventDefault();searchIdx=Math.max(searchIdx-1,0);renderSearch(document.getElementById('searchInput').value);}
+  else if(e.key==='Enter'&&searchFiltered[searchIdx]){jumpToPaper(searchFiltered[searchIdx].basename);}
+});
 </script>
 </body>
 </html>

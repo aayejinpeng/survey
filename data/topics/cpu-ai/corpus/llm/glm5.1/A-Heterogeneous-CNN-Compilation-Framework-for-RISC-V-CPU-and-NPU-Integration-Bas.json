@@ -1,55 +1,55 @@
 {
-  "title": "一种基于ONNX-MLIR的面向RISC-V CPU与NPU集成的异构CNN编译框架",
+  "title": "A Heterogeneous CNN Compilation Framework for RISC-V CPU and NPU Integration Based on ONNX-MLIR",
   "authors": "Shan Cao, Meiling Yang, Yintao Liu, Yu Li, Beining Zhao, Xinyu Chen, Zhiyuan Jiang",
   "year": 2025,
   "venue": "IEEE-TCAD",
   "doi": "10.1109/TCAD.2025.3564561",
-  "research_purpose": "针对RISC-V CPU与NPU异构平台上的CNN推理部署问题，提出一个基于ONNX-MLIR的编译框架，解决从算法到异构架构的映射与编译挑战。该框架通过算子打包、任务调度和内存管理等技术，实现CPU与NPU之间的协同计算，弥合两者之间的算力差距。",
-  "research_significance": "该工作填补了CPU/NPU协计算领域学术关注的空白，为数不多的将CPU作为计算参与者（而非仅作为主机）的异构编译框架之一。通过扩展ONNX-MLIR开源工具链，提供了一套通用的、可配置的CNN异构部署方案，支持多种CNN模型（VGG、ResNet、YOLO等）在不同硬件配置下的高效推理。实验表明该框架在代码密度和内存使用方面分别实现了最高7.06倍和5.58倍的改进。",
+  "research_purpose": "本文提出一个基于 ONNX-MLIR 的 RISC-V CPU/NPU 异构协同计算编译框架，解决 CNN 模型从算法到异构硬件架构的映射与编译问题，弥合 CPU 通用性和 NPU 计算效率之间的鸿沟。",
+  "research_significance": "当前学术界对 CPU/NPU 协同计算的关注不足，缺乏支持两者联合计算的架构和工具链。现有异构方案通常将 CPU 仅作为主机而不参与计算，限制了系统的通用性和扩展性。本文工作填补了 RISC-V 异构编译框架的空白，在 CNN 部署效率、代码密度和内存管理方面取得了显著提升，为 RISC-V 平台上的 AI 推理提供了系统性的编译工具链支持。",
   "contributions": [
     {
-      "point": "提出算子打包（operator packing）技术，通过扩展ONNX-MLIR框架添加自定义算子，将多个CNN操作封装为复合操作并映射到NPU指令，减少异构操作之间的切换开销",
+      "point": "提出基于 ONNX-MLIR 的算子打包技术，通过自定义算子将多个 CNN 操作封装为复合操作，减少异构操作间的切换开销，最大化 NPU 吞吐量",
       "evidence": "By extending the ONNX-MLIR framework with custom operators, we introduce an operator packing technique that maximizes the computational efficiency of NPUs, while minimizing overhead during transitions between heterogeneous operations."
     },
     {
-      "point": "开发了三模式任务调度器，支持用户在正确性验证（ALL_CPU）、自定义分配（USER_DEFINE）和默认优化（DEFAULT）模式之间灵活切换，展示了框架的多功能性",
+      "point": "设计了三种模式（ALL_CPU、USER_DEFINE、DEFAULT）的任务调度器，支持正确性验证、性能优化和细粒度异构分析",
       "evidence": "A task scheduler with three operational modes is developed, allowing users to customize the task distribution according to specific requirements, including correctness verification, performance optimization, or detailed analysis of computational workflows across heterogeneous platforms."
     },
     {
-      "point": "提出了面向CPU/NPU异构架构的优化内存管理方案，包含双端（DE）分配策略与自检功能、以及释放后使用（RU）机制，确保跨平台计算中数据访问的正确性并提升内存效率",
+      "point": "提出了针对 CPU/NPU 异构架构的优化内存管理方案，包含双端分配（DE）自检查机制和用后释放（RU）机制",
       "evidence": "The memory management system incorporates two techniques: a dual-end (DE) allocation strategy with a self-check function, and a release-after-use (RU) mechanism that minimizes memory footprint."
     },
     {
-      "point": "在ONNX-MLIR中实现了三个优化阶段——算子打包、算法适配和数据协调，弥合异构平台之间的计算差距",
-      "evidence": "To bridge the computational gap between heterogeneous platforms, within ONNX-MLIR, we developed three phases to support operator packing, algorithm adaption, and data coordination."
+      "point": "实现了算法适配和数据协调机制，解决 NPU 对特征图尺寸和存储顺序的硬件约束问题",
+      "evidence": "One effective strategy to address this challenge is to use the padding and reshaping techniques to conform non-power-of-2 FMs to NPU-compatible sizes."
     }
   ],
   "theme_primary": "7. Compiler / tensor IR / operator generation",
-  "theme_secondary": "4. RISC-V custom ISA / open ISA AI extension",
+  "theme_secondary": "1. CPU-side AI acceleration",
   "workstream_fit": "2",
   "is_close_baseline_to_cute": false,
-  "key_technique": "核心技术基于扩展ONNX-MLIR工具链构建异构编译框架：1）在ONNX dialect中添加三类自定义算子（I3O1OfNPU、I4O1OfNPU、I1O1OfNPU）实现算子打包，将CONV+ReLU/Pool、CONV+Add+ReLU/Pool、GEMM+ReLU/Reshape等组合封装为NPU函数；2）通过padding和reshaping技术将非2的幂次FM尺寸适配到NPU兼容格式，并在CPU侧修改FM存储顺序为channel-major以匹配NPU；3）使用RISC-V custom opcode空间（「00」和「10」前缀）将512-bit NPU指令拆分为18条32-bit RISC-V格式指令，实现NPU指令在RISC-V ISA中的无缝集成；4）采用动态量化将浮点权重转换为定点数据，并配合编译器级循环分块进行权重重排。",
-  "key_results": "在RV32IM CPU（8KB L1 cache）和自研NPU（SMIC 40nm，200MHz）平台上评估：1）代码密度最高降低7.06倍，内存使用最高改善5.58倍（DE机制 vs 顺序存储）；2）ResNet50内存占用从SS的11.00MB降至DE的1.97MB，延迟为56.7ms（8-bit量化），相比Curzel等人97.7MB/1614.8ms有显著优势；3）ALL_CPU模式下YOLOv3-Tiny（224×224×3, 8-bit）需要2770亿周期，凸显了RV32IM ISA缺少SIMD/向量扩展的瓶颈；4）与NEST-C相比，在相同精度和低频下延迟快11.2倍。",
+  "key_technique": "本文核心方法是基于 ONNX-MLIR 多级中间表示构建异构编译框架。在 ONNX dialect 层进行任务调度和算子打包，将连续 CNN 算子封装为 NPU 自定义算子；在 MLIR dialect 层进行数据协调和权重量化；在 LLVM dialect 层进行统一内存管理。NPU 的 512-bit 指令被拆分为 18 条 32-bit RISC-V 自定义指令嵌入 CPU 指令流。",
+  "key_results": "ResNet50 部署实现 24.4 MB 内存占用和 56.7 ms 延迟。DE 内存管理在 ResNet50 上实现 5.58 倍内存改善，代码密度最高降低 7.06 倍。纯 CPU 推理 YOLOv3-Tiny 需 2770 亿周期，凸显 RV32IM 缺乏向量/矩阵扩展的瓶颈。",
   "gap_identified": [
     {
-      "gap": "该框架仅支持CNN类网络，未覆盖Transformer等更先进的机器学习模型，限制了其在当前主流AI推理场景中的应用范围。",
-      "evidence": "Moving forward, we could explore the integration of more advanced machine learning models, such as transformers, and their adaptation to more heterogeneous architectures. This will be part of our future work.",
-      "relevance_to_cute": "该gap直接关联CUTE工作项1（CPU矩阵算力扩展）：若在RISC-V CPU端引入矩阵/张量扩展指令，可为Transformer等新模型的CPU端推理提供算力支撑，弥补NPU无法覆盖的算子类型。"
+      "gap": "当前框架仅支持 CNN，未扩展到 Transformer",
+      "evidence": "Moving forward, we could explore the integration of more advanced machine learning models, such as transformers, and their adaptation to more heterogeneous architectures.",
+      "relevance_to_cute": "CUTE 面向 LLM/Transformer 的设计目标将填补此空白。"
     },
     {
-      "gap": "使用的RISC-V CPU仅采用RV32IM基础指令集，缺乏SIMD、向量扩展或专用加速器，导致纯CPU推理性能极差（YOLOv3-Tiny需2770亿周期），论文自身指出了定制指令集和更大cache的必要性。",
-      "evidence": "One reason for this high cycle count may be that the RV32IM ISA lacks the specialized hardware extensions needed for efficient deep learning workloads... there are two key approaches for our architecture to enhance the CPU inference speed. First, we can customize the instruction set for deep learning tasks; second, a larger cache is needed.",
-      "relevance_to_cute": "该gap直接支撑CUTE工作项1（CPU矩阵算力扩展）和工作项2（RVV AI向量增强）的核心动机：为RISC-V CPU添加矩阵扩展和向量AI增强指令是解决CPU推理瓶颈的关键路径。"
+      "gap": "RISC-V RV32IM 缺乏向量/矩阵扩展，纯 CPU 推理性能极差",
+      "evidence": "the RV32IM ISA lacks the specialized hardware extensions needed for efficient deep learning workloads.",
+      "relevance_to_cute": "直接论证 CUTE 工作 1（CPU 矩阵扩展）和工作 2（RVV 向量增强）的必要性。"
     },
     {
-      "gap": "框架的内存管理采用离散式分配策略，CPU和NPU各自维护独立地址空间，需要显式数据传输，可能引入带宽竞争和延迟开销。",
-      "evidence": "In our work, we chose to use discrete memory allocation... While this approach can be more complex to manage because it requires explicit data transfers between the memory of CPU and the memory of NPU, it can offer more control.",
-      "relevance_to_cute": "该gap对CUTE工作项1中的scratchpad/数据流设计和工作项3（HBM/多节点系统架构）有启发：如何在CPU核内集成矩阵加速器并优化片上数据流，避免离散内存带来的传输开销，是CUTE需要解决的问题。"
+      "gap": "离散内存分配需显式数据传输，限制效率",
+      "evidence": "In our work, we chose to use discrete memory allocation... it requires explicit data transfers between the memory of CPU and the memory of NPU.",
+      "relevance_to_cute": "与 CUTE 工作 3（HBM + 统一内存架构）直接相关。"
     }
   ],
   "proposal_evidence": {
-    "for_state_of_art": "该论文代表了RISC-V CPU/NPU异构编译领域的前沿工作，发表于2025年IEEE-TCAD（集成电路设计自动化顶级期刊）。它展示了一种基于MLIR多级中间表示的编译方法，通过扩展ONNX-MLIR实现CNN在异构平台上的自动映射和优化，体现了编译器驱动的硬件-软件协同设计趋势。然而，该工作仅使用RV32IM基础指令集，未利用RISC-V向量扩展或矩阵扩展，说明当前RISC-V生态在AI加速方面仍有较大提升空间。",
-    "for_gap": "该论文揭示了三个关键研究空白：1）现有RISC-V CPU在AI推理中严重缺乏专用计算能力——纯CPU执行YOLOv3-Tiny需要2770亿周期，论文明确指出需要「定制指令集」和「更大cache」；2）现有异构编译框架大多将CPU仅作为主机而非计算参与者，限制了系统的通用性和扩展性；3）该框架仅覆盖CNN，未支持Transformer等现代模型。这些空白直接支撑开题报告的gap论证：CUTE提出的CPU矩阵算力扩展、RVV AI向量增强和系统级架构优化正是针对这些不足的系统性解决方案。",
-    "for_feasibility": "该论文的实验数据为CUTE的可行性提供了重要参考：1）RISC-V custom opcode空间足以容纳NPU指令（论文成功将512-bit NPU指令映射到32-bit RISC-V custom格式），证明在RISC-V ISA中集成矩阵扩展指令在编码空间上是可行的；2）DE内存管理机制在ResNet50上实现5.58倍内存优化（从11.00MB降至1.97MB），表明精心设计的片上内存管理能显著提升效率；3）8-bit量化后的ResNet50延迟为56.7ms（200MHz NPU），相比32-bit实现（1614.8ms）有28.5倍加速，验证了低精度计算在边缘AI部署中的有效性。"
+    "for_state_of_art": "该论文发表在 IEEE TCAD 2025，代表 RISC-V 异构 AI 编译框架前沿。是少数支持 RISC-V CPU 参与实际计算的异构编译框架之一。",
+    "for_gap": "揭示了 RISC-V 基础 ISA 缺乏向量/矩阵扩展导致纯 CPU AI 推理不可行的现状，直接论证 CUTE 工作 1 和工作 2 的必要性；仅支持 CNN 未覆盖 Transformer 为 CUTE 面向 LLM 的设计提供差异化论证。",
+    "for_feasibility": "提供了关键基准数据：ResNet50 纯 CPU 推理 13234 ms 表明基线 ISA 无法满足需求；DE 内存管理 5.58 倍优化证明高效内存策略在异构系统中的价值；算子打包 7.06 倍代码密度降低证明编译优化与硬件扩展的协同效益。"
   }
 }

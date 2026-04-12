@@ -46,6 +46,11 @@
       "gap": "离散内存分配需要 CPU 与 NPU 之间显式数据传输，管理复杂度较高，说明统一内存/更紧耦合数据通路仍有改进空间。",
       "evidence": "While this approach can be more complex to manage because it requires explicit data transfers between the memory of CPU and the memory of NPU, it can offer more control. In our work, we chose to use discrete memory allocation.",
       "relevance_to_cute": "与更高效的内存体系或统一数据通路设计有关，但只是间接启发，不是直接证据。"
+    },
+    {
+      "gap": "论文全文没有提CPU-NPU配合能得到的性能提升，反而是把所有任务offload到npu上性能是最好的。CPU的作用仅仅是把任务分配到NPU上，讨论打包好的NPU任务可以加速任务\n",
+      "evidence": "",
+      "relevance_to_cute": ""
     }
   ],
   "proposal_evidence": {

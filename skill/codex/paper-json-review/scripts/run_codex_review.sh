@@ -16,10 +16,11 @@ STEM="$(basename "$ANALYSIS_JSON" .json)"
 if [ "$#" -ge 3 ] && [ -n "$3" ]; then
   OUT_DIR="$3"
 else
-  # If analysis is under corpus/llm/glm5.1, output goes to sibling gpt5.4
+  # If analysis is under corpus/llm/glm5.1 or llm_get_point/glm5.1, output goes to sibling gpt5.4
   ANALYSIS_DIR="$(dirname "$ANALYSIS_JSON")"
   PARENT_DIR="$(dirname "$ANALYSIS_DIR")"
-  if [ "$(basename "$PARENT_DIR")" = "llm" ] && [ -d "$PARENT_DIR/gpt5.4" ]; then
+  PARENT_BASENAME="$(basename "$PARENT_DIR")"
+  if { [ "$PARENT_BASENAME" = "llm" ] || [ "$PARENT_BASENAME" = "llm_get_point" ]; } && [ -d "$PARENT_DIR/gpt5.4" ]; then
     OUT_DIR="$PARENT_DIR/gpt5.4"
   else
     OUT_DIR="$ANALYSIS_DIR"

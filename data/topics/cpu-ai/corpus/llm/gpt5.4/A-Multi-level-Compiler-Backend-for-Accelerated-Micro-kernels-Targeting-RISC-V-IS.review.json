@@ -5,161 +5,168 @@
     "numeric_claims": "pass",
     "schema": "pass",
     "semantic_grounding": "mixed",
-    "taxonomy_mapping": "pass"
+    "taxonomy_mapping": "mixed"
   },
   "confidence": "high",
   "field_reviews": [
     {
       "field": "research_purpose",
-      "paper_evidence": "We widen this hourglass by proposing a multi-level back-end which accepts, preserves, and exploits domain-specific information to target innovative hardware.",
-      "reason": "对论文目标的概括基本准确，抓住了打破传统 backend hourglass、采用 progressive lowering 面向 RISC-V 扩展生成代码的主旨。",
+      "paper_evidence": "We think it is time to widen the classical hourglass backend and embrace progressive lowering across a diverse set of structured abstractions to bring domain-specific code generation to compiler backends.",
+      "reason": "该字段准确概括了论文提出多层级后端以缓解传统后端信息瓶颈的目标。",
       "severity": "minor",
       "status": "supported",
       "suggested_fix": "保持不变"
     },
     {
       "field": "research_significance",
-      "paper_evidence": "Even though widely-adopted compilers (e.g., LLVM, GCC) offer tuned backends, their CPU-focused input abstraction, unstructured intermediate representation (IR), and general-purpose best-effort design inhibit tailored code generation for innovative hardware.",
-      "reason": "重要性表述总体成立，但“实现了从高级 DSL 到 Snitch 加速器的端到端自动编译，FPU 利用率最高达 90%，为……提供了新范式”略带总结性拔高；论文更保守地说是 prototype showcases a progressive methodology。",
+      "paper_evidence": "We use incremental register allocation over structured IRs, while dropping classical spilling heuristics, and show up to 90% floating-point unit (FPU) utilization across key DNN kernels.",
+      "reason": "总体意义判断基本成立，但“为CUTE项目提供直接可借鉴的方法论和实验验证”属于面向你们课题的外推，不是论文原文结论。",
       "severity": "minor",
       "status": "partially_supported",
-      "suggested_fix": "改为更保守表述：说明其展示了在 MLIR 中以多层 SSA IR 支撑 Snitch 扩展代码生成，并在代表性 ML kernel 上达到最高 90% FPU 利用率。"
+      "suggested_fix": "保留其对RISC-V自定义加速器编译器基础设施的意义，弱化对CUTE的“直接实验验证”表述。"
     },
     {
       "field": "contributions",
-      "paper_evidence": "Our contributions are: • A low-level representation of the RISC-V ISA and Snitch accelerator extensions in a collection of SSA-based IRs (Sections 3.1 and 3.2). • A multi-level and spill-free register allocator for structured backend IRs (Section 3.3). • A progressive lowering from a high-level DSL down to the aforementioned RISC-V SSA-based IRs (Section 3.4). • An evaluation demonstrating peak performance for handwritten micro-kernels (up to 95% floating-point unit (FPU) utilization), and close-to-matching performance ... for a high-level linear algebra DSL, when targeted via a micro-kernel compiler (Section 4).",
-      "reason": "四项贡献点与论文贡献列表基本一致，但第 4 条 evidence 在 dossier 中截断了原句，未保持直接英文引文的完整性。",
+      "paper_evidence": "Our contributions are:\n• A low-level representation of the RISC-V ISA and Snitch\naccelerator extensions in a collection of SSA-based IRs\n(Sections 3.1 and 3.2).\n• A multi-level and spill-free register allocator for structured\nbackend IRs (Section 3.3).\n• A progressive lowering from a high-level DSL down to the\naforementioned RISC-V SSA-based IRs (Section 3.4).",
+      "reason": "前三项贡献与原文一致。第四项贡献的证据引文未完整落在论文文本中，且把42% LLVM基线写进贡献点会让贡献与实验结果混杂。",
       "severity": "major",
       "status": "partially_supported",
-      "suggested_fix": "保留四项贡献点，但将第 4 条 evidence 改为论文中可直接匹配的完整英文引文。"
+      "suggested_fix": "保留前三项；第四项改写为论文明确给出的评估结论，并替换为可直接定位的英文引文。"
     },
     {
       "field": "theme_primary",
-      "paper_evidence": "Our MLIR-based prototype showcases a progressive methodology for creating modular and expressive compiler backends that combine domain knowledge with hardware capabilities.",
-      "reason": "论文核心是编译器后端与多层 IR 设计，主主题映射到 Compiler / tensor IR / operator generation 合理。",
+      "paper_evidence": "By breaking the backend hourglass model, we reopen the path from domain-\nspecific abstractions to specialized hardware.",
+      "reason": "论文核心是编译器后端、IR设计和渐进式lowering，主主题归入编译器方向正确。",
       "severity": "minor",
       "status": "supported",
       "suggested_fix": "保持不变"
     },
     {
       "field": "theme_secondary",
-      "paper_evidence": "We implement our idea as a backend for Snitch [80], a scalable in-order RISC-V core with custom extensions for streaming registers and hardware loops.",
-      "reason": "次主题映射到 RISC-V custom ISA / open ISA AI extension 合理，因为目标平台是带自定义扩展的 RISC-V Snitch。",
-      "severity": "minor",
-      "status": "supported",
-      "suggested_fix": "保持不变"
+      "paper_evidence": "We demonstrate this concept by implementing a custom backend for a RISC-V-based accelerator with hardware loops and streaming registers, leveraging knowledge about the hardware at levels of abstraction that match its custom instruction set architecture (ISA).",
+      "reason": "论文聚焦Snitch的自定义ISA扩展，而不是RVV或通用向量扩展；将次主题标成RVV/vector会误导。",
+      "severity": "major",
+      "status": "incorrect",
+      "suggested_fix": "改为 4. RISC-V custom ISA / open ISA AI extension"
     },
     {
       "field": "workstream_fit",
-      "paper_evidence": "We implement our idea as a backend for Snitch [80], a scalable in-order RISC-V core with custom extensions for streaming registers and hardware loops.",
-      "reason": "主工作内容集中于 RISC-V ISA 扩展与编译/算子生成，更贴合工作流 2。",
+      "paper_evidence": "Our modular approach makes it easy to extend backends\nto target accelerators with custom ISA extensions, by lever-\naging shared abstractions and infrastructure.",
+      "reason": "论文更贴近RISC-V ISA与编译器/operator generation工作流，归入workstream 2合理。",
       "severity": "minor",
       "status": "supported",
       "suggested_fix": "保持不变"
     },
     {
       "field": "is_close_baseline_to_cute",
-      "paper_evidence": "We demonstrate this concept by implementing a custom backend for a RISC-V-based accelerator with hardware loops and streaming registers",
-      "reason": "该文是面向 RISC-V 自定义扩展的编译器后端，不是直接提出 CPU 矩阵扩展本体，因此不应算作 CUTE 的直接 baseline。",
+      "paper_evidence": "We implement our idea as a backend\nfor Snitch [80], a scalable in-order RISC-V core with custom\nextensions for streaming registers and hardware loops, and\ngenerate high-performance DNN kernels for Snitch.",
+      "reason": "该工作是相关方法参考，不是CUTE矩阵/张量扩展的直接基线，设为false较稳妥。",
       "severity": "minor",
       "status": "supported",
       "suggested_fix": "保持不变"
     },
     {
       "field": "key_technique",
-      "paper_evidence": "We pair base IRs modelling the core instruction set architecture (ISA) (e.g., RISC-V) with structured IRs for domain-specific accelerator extensions. ... demonstrate that spilling common in best-effort register allocation is not needed for peak performance.",
-      "reason": "技术路线概括基本忠实，涵盖多层方言、渐进 lowering、Snitch 扩展建模与无 spill 寄存器分配。个别细节如“三遍线性扫描”若非直接来自文本则属于轻度推断。",
+      "paper_evidence": "We pair base IRs modelling the core instruction set architecture (ISA) (e.g., RISC-V) with structured IRs for domain-specific accelerator extensions. We support structured control flow and non-standard register usage through a multi-level register allocator that operates across IR abstractions.",
+      "reason": "对多层级SSA IR与多层级寄存器分配器的概述有依据；但“展开因子=4匹配Snitch FPU三级流水线深度”“确定性的调度策略而非昂贵调度空间搜索”这类细节较强，最好收敛到论文明确论述。",
       "severity": "minor",
       "status": "partially_supported",
-      "suggested_fix": "删除未经直接证实的实现细节，保留多层 IR、渐进 lowering、增量寄存器分配、SSR/FREP 建模等已被文本支持的内容。"
+      "suggested_fix": "保留多层级IR、spill-free寄存器分配、从linalg经memref_stream到Snitch扩展的lowering，删除过细或推断性色彩较强的机制解释。"
     },
     {
       "field": "key_results",
-      "paper_evidence": "The combination of high- and low-level passes yields nearly optimal performance when compiling linear algebra micro-kernels using our compiler, reaching 73%-90% FPU utilization across our kernels.",
-      "reason": "结果总结大体正确，数值多数可在正文找到；但“传统 LLVM 后端的 Clang 和 MLIR 流水线仅达约 42%”需要更谨慎表述为特定对比流在相关实验中的结果，而非普遍结论。",
+      "paper_evidence": "In our measurements, they have similar performance, both\npeaking at approximately 42% utilization (Figure 10).\nFigure 11. Sustained throughput of the 64-bit MatMul kernel\n(𝐶𝑀×𝑁= 𝐴𝑀×𝐾𝐵𝐾×𝑁when 𝑀= 1). We achieve throughput\nof over 90% (≥1.80 FLOPs/cycle) of the theoretical peak\n(above the white border) as shape sizes increase.\nMatMulT\n11/20\n12/15",
+      "reason": "关键数字与论文相符，包括42% LLVM基线、64-bit MatMul超过1.80 FLOPs/cycle，以及MatMulT的寄存器压力。文字上可更保守，避免把不同图表结论拼接得过满。",
       "severity": "minor",
-      "status": "partially_supported",
-      "suggested_fix": "保留 73%-90%、95%、1.80 FLOPs/cycle、11/20 与 12/15 等结果；把 42% 明确写成对比流程在论文实验中的近似观测值。"
+      "status": "supported",
+      "suggested_fix": "保持数字，但按论文原始实验结论重写为更紧凑表述。"
     },
     {
       "field": "gap_identified",
-      "paper_evidence": "excluding Softmax and Sigmoid, as these rely on exponentiation and logarithm functions, the implementation of which is beyond the scope of this paper. These trends should be taken into account by higher-level tools calling into our compiler when distributing larger workloads between Snitch cores.",
-      "reason": "三条 gap 的方向基本合理，但前两条 evidence 不是严格逐字匹配；另外第一条把“更深层嵌套循环下可能成为问题”扩展成了较强的结论，需要更保守。",
+      "paper_evidence": "While the decision to exclude registers used for\nfunction arguments and results does not present a challenge\nfor kernels of similar characteristics to our chosen set, it\nmight become a concern for those with more involved fea-\ntures such as deeper loop nests.\nWe select shape sizes to fit within the TCDM\n(Section 2.4) such that our performance measurements are\nnot influenced by the rest of the memory hierarchy.\nSnitch’s in-order core and software-managed L1 cache\nmake its performance predictable, allowing us to build a\nsimple scheduling pipeline, obviating the need for expensive\nschedule space exploration.",
+      "reason": "第1、3、4项gap方向基本成立，但第1和第3项原证据不是逐字引文，需要修正；第2项“尚未证明通用性和可移植性”是合理推断，但现有证据更适合支撑“方法具有可扩展潜力”而非直接证明缺口。",
       "severity": "major",
       "status": "partially_supported",
-      "suggested_fix": "将前两条 evidence 改为论文中可直接提取的原文；第一条 gap 改写为论文明确承认的潜在寄存器压力约束，而非已证实缺陷。"
+      "suggested_fix": "修正第1和第3项英文引文；保留第2项但明确这是基于仅在Snitch上展示得到的保守推断；第4项保持。"
     },
     {
       "field": "proposal_evidence.for_state_of_art",
-      "paper_evidence": "To the best of our knowledge, our work is the first MLIR-based compiler backend that captures accelerator-specific abstractions and employs a self-contained code generation scheme.",
-      "reason": "该字段基本有据可依，但“代表最新水平”属于外延性评价，应弱化为“可视为该方向的重要近期代表工作”。",
+      "paper_evidence": "To the best\nof our knowledge, our work is the first MLIR-based compiler\nbackend that captures accelerator-specific abstractions and\nemploys a self-contained code generation scheme.",
+      "reason": "将其作为该方向代表性最新工作基本合理，但“最前沿水平”与“首次”都应限定在论文自述范围内，避免过强外推。",
       "severity": "minor",
       "status": "partially_supported",
-      "suggested_fix": "保留 first-MLIR-based-backend 这一作者自述，弱化“最新水平/前沿代表”的绝对化措辞。"
+      "suggested_fix": "改写为“CGO 2025上的代表性近期工作，论文自述为首个MLIR-based、捕获加速器特定抽象且自包含代码生成的后端”。"
     },
     {
       "field": "proposal_evidence.for_gap",
-      "paper_evidence": "Even though widely-adopted compilers (e.g., LLVM, GCC) offer tuned backends, their CPU-focused input abstraction, unstructured intermediate representation (IR), and general-purpose best-effort design inhibit tailored code generation for innovative hardware.",
-      "reason": "该字段总体被支持，且 42% vs 90% 等数值来自论文实验。不过“证明了必要性”略强，宜表述为“支持/表明了必要性”。",
+      "paper_evidence": "In our measurements, they have similar performance, both\npeaking at approximately 42% utilization (Figure 10).\nWe implement our idea as a backend\nfor Snitch [80], a scalable in-order RISC-V core with custom\nextensions for streaming registers and hardware loops.",
+      "reason": "传统LLVM流程在Snitch上约42%利用率有直接证据；但“直接支撑开题报告对RISC-V AI扩展编译器支持不足的gap论证”属于面向提案的延伸，需更谨慎。",
       "severity": "minor",
       "status": "partially_supported",
-      "suggested_fix": "将绝对结论改为保守判断，并保留论文已展示的对比结果与范围边界。"
+      "suggested_fix": "保留LLVM基线不足和仅在Snitch验证两点，改为“可作为相关gap的间接证据”。"
     },
     {
       "field": "proposal_evidence.for_feasibility",
-      "paper_evidence": "The Streams optimization enables the use of Snitch SSRs, resulting in a 50% decrease in the cycle count. Meanwhile, the number of explicit loads and stores issued decreases by 66%... Adding Scalar Replacement leads to an additional performance improvement of over 4× ... The combination of high- and low-level passes yields nearly optimal performance ... reaching 73%-90% FPU utilization across our kernels.",
-      "reason": "该字段大体受到实验结果支持，但“20 个 FP 寄存器和 15 个整数寄存器即可满足 MatMul 等核心算子需求”需要更精确地表述为论文报告的已分配寄存器使用量，而不是资源充足性的普遍结论。",
+      "paper_evidence": "show up to 90% floating-point unit\n(FPU) utilization across key DNN kernels.\nMatMulT\n11/20\n12/15\n• Code licenses (if publicly available)?: Apache License\nversion 2.0 with LLVM Exceptions.",
+      "reason": "90%利用率、寄存器压力、开源许可证都有依据；但“相比LLVM后端的42%提升超过2倍”是你方计算，不是论文直接表述，可保留数字但弱化口吻。",
       "severity": "minor",
-      "status": "partially_supported",
-      "suggested_fix": "改写为：论文在给定 Snitch 寄存器资源下观察到 MatMul/MatMulT 等内核使用到 8/20 或 11/20 FP、8/15 或 12/15 integer registers，显示该方法在实验内核上可实现无 spill 编译。"
+      "status": "supported",
+      "suggested_fix": "保持核心可行性论证，但把“超过2倍”改成更中性的“显著高于约42%的LLVM流程”。"
     }
   ],
   "issues": [
     {
       "field": "contributions[3].evidence",
-      "paper_evidence": "An evaluation demonstrating peak performance for hand-written micro-kernels (up to 95% floating-point unit (FPU) utilization), and close-to-matching performance",
-      "problem": "原 evidence 不是论文中的完整直接引文，末尾拼接成摘要式句子，违反 evidence 必须为英文原文直引的要求。",
-      "recommended_action": "改成论文可直接匹配的完整原句片段，避免自行补写。",
+      "paper_evidence": "An evaluation demonstrating peak performance for hand-\nwritten micro-kernels (up to 95% floating-point unit (FPU)\nutilization), and close-to-matching performance (up to 90%",
+      "problem": "该证据字符串在原文中未以当前完整形式逐字出现，存在跨版面/断句拼接问题。",
+      "recommended_action": "将第四项贡献改写为更保守的实验贡献，并使用可直接定位的英文原文引文。",
       "severity": "critical"
     },
     {
-      "field": "venue",
-      "paper_evidence": "CGO '25: Proceedings of the 23rd ACM/IEEE International Symposium on Code Generation and Optimization (March 2025)",
-      "problem": "venue 与源 paper JSON 的元数据不一致；dossier 写成长标题，源 paper JSON 记录为 `CGO`。",
-      "recommended_action": "按源 paper JSON 统一为 `CGO`。",
+      "field": "theme_secondary",
+      "paper_evidence": "We demonstrate this concept by implementing a custom backend for a RISC-V-based accelerator with hardware loops and streaming registers, leveraging knowledge about the hardware at levels of abstraction that match its custom instruction set architecture (ISA).",
+      "problem": "次主题被标为RVV/vector enhancement，但论文并未讨论RVV，核心是Snitch自定义ISA扩展。",
+      "recommended_action": "将 `theme_secondary` 改为 `4. RISC-V custom ISA / open ISA AI extension`。",
       "severity": "major"
     },
     {
       "field": "gap_identified[0].evidence",
-      "paper_evidence": "信息不足，无法从文本中提取",
-      "problem": "该 evidence 不是对源文本的逐字直引，且现有 draft 文本难以完整恢复 dossier 中的组合引文。",
-      "recommended_action": "改为可从论文直接提取的保守引文，或在无法确保逐字匹配时缩短为明确可见的原句片段。",
+      "paper_evidence": "While the decision to exclude registers used for\nfunction arguments and results does not present a challenge\nfor kernels of similar characteristics to our chosen set, it\nmight become a concern for those with more involved fea-\ntures such as deeper loop nests.",
+      "problem": "原evidence不是严格逐字引文，缺少换行/断词形式。",
+      "recommended_action": "替换为上面的逐字引文，保留该gap但收敛措辞。",
       "severity": "major"
     },
     {
-      "field": "gap_identified[1].evidence",
-      "paper_evidence": "excluding Softmax and Sigmoid, as these rely on exponentiation and logarithm functions, the implementation of which is beyond the scope of this paper.",
-      "problem": "原 evidence 与论文原文存在标点和断词差异，不满足严格直引要求。",
-      "recommended_action": "替换为上述可直接匹配的英文原文。",
+      "field": "gap_identified[2].evidence",
+      "paper_evidence": "We select shape sizes to fit within the TCDM\n(Section 2.4) such that our performance measurements are\nnot influenced by the rest of the memory hierarchy.",
+      "problem": "原evidence在末尾追加了下一句，未与论文文本逐字对应。",
+      "recommended_action": "改为可直接定位的句子，并将gap描述限定为“实验刻意避开更深层内存层次影响”。",
       "severity": "major"
+    },
+    {
+      "field": "venue",
+      "paper_evidence": "CGO",
+      "problem": "`venue` 与语料库元数据不一致，当前写法扩展成了长会议名。",
+      "recommended_action": "为保持与语料库字段一致，改回 `CGO`。",
+      "severity": "minor"
     }
   ],
   "overall_verdict": "major_revision",
   "ready_for_proposal_use": false,
   "review_target": {
-    "analysis_json_path": "/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/llm/glm5.1/A-Multi-level-Compiler-Backend-for-Accelerated-Micro-kernels-Targeting-RISC-V-IS.json",
+    "analysis_json_path": "/root/opencute/slides/2026.04_todo_yjp-ktbg/workspace/llm_get_point/glm5.1/A-Multi-level-Compiler-Backend-for-Accelerated-Micro-kernels-Targeting-RISC-V-IS.json",
     "analysis_title": "A Multi-level Compiler Backend for Accelerated Micro-kernels Targeting RISC-V ISA Extensions",
-    "paper_json_path": "/root/opencute/workspace/survey/data/topics/cpu-ai/corpus/draft/A-Multi-level-Compiler-Backend-for-Accelerated-Micro-kernels-Targeting-RISC-V-IS.json",
+    "paper_json_path": "/root/opencute/slides/2026.04_todo_yjp-ktbg/workspace/corpus/A-Multi-level-Compiler-Backend-for-Accelerated-Micro-kernels-Targeting-RISC-V-IS.json",
     "paper_title": "A Multi-level Compiler Backend for Accelerated Micro-kernels Targeting RISC-V ISA Extensions",
     "resolved_paper_by": "explicit_path"
   },
   "stats": {
-    "matched_evidence_quotes": 4,
-    "matched_numeric_claims": 15,
+    "matched_evidence_quotes": 5,
+    "matched_numeric_claims": 19,
     "missing_required_fields": [],
     "required_field_count": 17,
-    "total_evidence_quotes": 7,
-    "total_numeric_claims": 15
+    "total_evidence_quotes": 8,
+    "total_numeric_claims": 19
   },
-  "summary": "该 dossier 与论文主题、方法和主要数值结果大体一致，但存在多处 evidence 直引不规范，且个别 proposal 结论和 significance 表述偏强。元数据中的 venue 也未与源 paper JSON 保持一致。整体可修复，但在修正证据引文和收敛措辞前，不宜直接用于 proposal。"
+  "summary": "该dossier整体抓住了论文主线，研究目的、主要贡献框架和关键数值结果大体可信。主要问题在于若干英文evidence不是严格逐字引文，以及次主题把Snitch自定义ISA误标成RVV/vector方向。另有少量面向CUTE提案的外推措辞偏强，需要收敛到论文明确支持的范围。"
 }

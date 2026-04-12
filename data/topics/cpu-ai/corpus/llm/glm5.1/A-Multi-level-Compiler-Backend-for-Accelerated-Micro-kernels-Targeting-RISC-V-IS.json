@@ -2,54 +2,59 @@
   "title": "A Multi-level Compiler Backend for Accelerated Micro-kernels Targeting RISC-V ISA Extensions",
   "authors": "Alexandre Lopoukhine, Federico Ficarelli, Christos Vasiladiotis, Anton Lydike, Josse Van Delm, Alban Dutilleul, Luca Benini, Marian Verhelst, Tobias Grosser",
   "year": 2025,
-  "venue": "CGO '25: 23rd ACM/IEEE International Symposium on Code Generation and Optimization",
+  "venue": "CGO (ACM/IEEE International Symposium on Code Generation and Optimization)",
   "doi": "10.1145/3696443.3708952",
-  "research_purpose": "本文旨在打破传统编译器后端的沙漏模型（hourglass model），提出一种多层次编译器后端架构，通过渐进式降低（progressive lowering）跨多个结构化抽象层级，实现对 RISC-V 自定义 ISA 扩展的领域特定代码生成，从而替代手写汇编微内核。",
-  "research_significance": "该工作解决了当前编译器后端无法有效利用定制化硬件加速器特性（如硬件循环、流式寄存器）的问题。传统后端（如 LLVM）的低级 IR 和通用设计限制了面向新型加速器的代码生成质量。本文通过在 MLIR 框架内构建多层次 SSA IR 后端，实现了从高级 DSL 到 Snitch 加速器的端到端自动编译，FPU 利用率最高达 90%，为面向 RISC-V 定制加速器的编译器后端设计提供了新范式。",
+  "research_purpose": "针对传统编译器后端（如LLVM）在面向带有自定义ISA扩展的专用加速器时存在的「沙漏模型」信息瓶颈问题，提出一种多层级编译器后端架构，通过在不同抽象层级上保留领域特定信息，实现从高级DSL到RISC-V加速器自定义指令的高效代码生成。",
+  "research_significance": "该工作打破了传统编译器后端的单层抽象瓶颈，为RISC-V生态中日益增多的自定义加速器提供了可扩展的编译器基础设施。实验表明该方法在DNN微内核上可达90%的FPU利用率，远超传统LLVM后端的约42%。该研究为CUTE项目中涉及RISC-V自定义扩展（矩阵扩展、向量扩展）的编译器支持提供了直接可借鉴的方法论和实验验证。",
   "contributions": [
     {
-      "point": "设计了一组基于 SSA 的多层级 IR 方言（rv, rv_cf, rv_scf, rv_func, rv_snitch），用于建模 RISC-V 基础 ISA 及 Snitch 加速器扩展",
+      "point": "提出了基于SSA的多层级RISC-V ISA和Snitch加速器扩展的IR表示，包含rv、rv_cf、rv_snitch等方言，将汇编指令和加速器语义编码为结构化IR",
       "evidence": "A low-level representation of the RISC-V ISA and Snitch accelerator extensions in a collection of SSA-based IRs (Sections 3.1 and 3.2)."
     },
     {
-      "point": "提出了一种面向结构化后端 IR 的多层次无溢出（spill-free）寄存器分配方法，在所有测试内核中均不需要寄存器溢出",
+      "point": "设计了面向结构化IR的多层级无溢出（spill-free）寄存器分配器，利用结构化控制流信息实现可预测的寄存器管理",
       "evidence": "A multi-level and spill-free register allocator for structured backend IRs (Section 3.3)."
     },
     {
-      "point": "实现了从高级 linalg DSL 到 RISC-V SSA IR 的渐进式降低流水线，包括流式寄存器配置、FREP 硬件循环映射和 unroll-and-jam 优化",
+      "point": "实现了从高级linalg DSL经memref_stream方言到Snitch加速器指令的渐进式低降（progressive lowering）编译流水线",
       "evidence": "A progressive lowering from a high-level DSL down to the aforementioned RISC-V SSA-based IRs (Section 3.4)."
     },
     {
-      "point": "在 Snitch 加速器上验证了端到端编译效果，手写微内核达 95% FPU 利用率，DSL 自动生成的内核达 90% FPU 利用率",
+      "point": "在Snitch RISC-V加速器上验证了编译器生成代码的性能：手工微内核达95% FPU利用率，DSL编译微内核达90% FPU利用率，远超LLVM后端的约42%",
       "evidence": "An evaluation demonstrating peak performance for handwritten micro-kernels (up to 95% floating-point unit (FPU) utilization), and close-to-matching performance (up to 90% FPU utilization) for a high-level linear algebra DSL, when targeted via a micro-kernel compiler (Section 4)."
     }
   ],
   "theme_primary": "7. Compiler / tensor IR / operator generation",
-  "theme_secondary": "4. RISC-V custom ISA / open ISA AI extension",
+  "theme_secondary": "3. Vector extension / RVV / vector AI enhancement",
   "workstream_fit": "2",
   "is_close_baseline_to_cute": false,
-  "key_technique": "本文的核心技术是基于 MLIR/xDSL 框架构建多层次编译器后端。底层使用 rv 和 rv_cf 方言直接建模 RISC-V 汇编指令，高层使用 rv_scf、rv_func 保留结构化控制流和调用约定信息。针对 Snitch 加速器，rv_snitch 方言编码了 SSR（Stream Semantic Registers，流语义寄存器）和 FREP（Floating-point Repetition，浮点重复）硬件循环扩展。编译流水线从 linalg.generic 出发，通过 memref_stream 方言桥接高级线性代数抽象与 Snitch 流式操作，最终渐进式降低为可发射的 RISC-V 汇编。寄存器分配采用三遍线性扫描，利用 SSA 的 use-def 链进行反向遍历分配，在结构化控制流中实现完全无溢出。",
-  "key_results": "在 Snitch RISC-V 加速器（Verilator RTL 仿真）上评估了 Sum、Fill、ReLU、Conv 3x3、Max/Sum Pool 3x3、MatMul、MatMulT 等典型 DNN 微内核。手写低级 IR 版本 Sum 和 ReLU 达到 95% FPU 利用率；从 linalg DSL 自动编译的内核达 73%-90% FPU 利用率，而使用传统 LLVM 后端的 Clang 和 MLIR 流水线仅达约 42%。MatMul 内核在 64 位精度下随输入尺寸增大可超过理论峰值的 90%（≥1.80 FLOPs/cycle）。寄存器分配在所有内核中均无溢出，FP 寄存器使用最高 11/20，整数寄存器最高 12/15。",
+  "key_technique": "核心技术是基于MLIR框架构建多层级编译器后端，包含三个关键设计：1）使用一族SSA-based IR方言（rv、rv_cf、rv_snitch、snitch_stream等）在不同抽象层级建模RISC-V ISA和Snitch加速器的streaming register（SSR）与硬件循环（FREP）扩展；2）设计了三趟线性扫描的无溢出寄存器分配器，利用结构化控制流（region）中的SSA use-def链进行增量分配，完全避免传统spilling开销；3）通过memref_stream方言桥接linalg高级抽象与Snitch加速器能力，采用unroll-and-jam（展开因子=4，匹配Snitch FPU三级流水线深度）消除RAW数据冒险，实现确定性的调度策略而非昂贵的调度空间搜索。",
+  "key_results": "在Snitch RISC-V加速器上的RTL周期精确仿真结果表明：1）手工编写的低级IR微内核（Sum、ReLU）达到95% FPU利用率，MatMulT达74%；2）从高级DSL自动编译的微内核整体达到73%-90% FPU利用率，而传统LLVM后端（MLIR和Clang流程）仅达约42%；3）MatMul 64-bit内核在较大输入尺寸下达到理论峰值吞吐量的90%以上（≥1.80 FLOPs/cycle）；4）寄存器分配器在所有内核上保持无溢出，32-bit MatMulT使用11/20个FP寄存器和12/15个整数寄存器为最高压力情况。",
   "gap_identified": [
     {
-      "gap": "当前寄存器分配器排除了所有已用于函数参数的寄存器，这一保守策略在更深层嵌套循环或更复杂内核中可能导致寄存器压力过大，论文承认需要在未来工作中优化此约束。",
-      "evidence": "While the decision to exclude registers used for function arguments and results does not present a challenge for kernels of similar characteristics to our chosen set, it might become a concern for those with more involved features such as deeper loop nests. ... Optimizations to mitigate this constraint, as well as other transformations to reduce register pressure, are planned for future work.",
-      "relevance_to_cute": "对 CUTE 工作 1（CPU 矩阵算力扩展）和工作 2（RVV AI 向量增强 + AI 辅助算子生成）均有启发：在设计面向矩阵/向量扩展的编译器后端时，需考虑更精确的活跃范围分析以减少寄存器浪费，特别是当扩展指令增加寄存器需求时。"
+      "gap": "当前寄存器分配器采用保守策略排除所有已用于函数参数的寄存器，对于更深层嵌套循环或更复杂内核可能面临寄存器压力不足的问题",
+      "evidence": "While the decision to exclude registers used for function arguments and results does not present a challenge for kernels of similar characteristics to our chosen set, it might become a concern for those with more involved features such as deeper loop nests. Optimizations to mitigate this constraint, as well as other transformations to reduce register pressure, are planned for future work.",
+      "relevance_to_cute": "该gap对CUTE工作1（CPU矩阵算力扩展）和工作2（RVV AI向量增强）均有启发：在设计面向矩阵扩展或向量扩展的编译器后端时，需考虑更复杂的嵌套循环结构下的寄存器分配策略，尤其是当自定义扩展引入额外寄存器约束时。"
     },
     {
-      "gap": "本文未处理非结构化控制流和通用目的程序编译，仅针对线性代数微内核，且 Softmax、Sigmoid 等依赖超越函数的内核被排除在外。",
-      "evidence": "We manually implement the kernels (Table 1) used by these two networks, excluding Softmax and Sigmoid, as these rely on exponentiation and logarithm functions, the implementation of which is beyond the scope of this paper.",
-      "relevance_to_cute": "对 CUTE 工作 2（AI 辅助算子生成）有直接启发：CUTE 的算子生成器需覆盖更广泛的算子类型，包括含超越函数的激活函数，需要设计超越函数的向量/矩阵扩展实现策略。"
+      "gap": "当前编译器仅针对Snitch单一加速器目标验证，尚未证明多层级后端方法对不同RISC-V加速器架构的通用性和可移植性",
+      "evidence": "Our modular approach makes it easy to extend backends to target accelerators with custom ISA extensions, by leveraging shared abstractions and infrastructure.",
+      "relevance_to_cute": "该gap提示CUTE工作2（RVV AI向量增强 + AI辅助算子生成）需要验证多层级编译器后端方法对标准RVV扩展（而非仅Snitch自定义扩展）的适用性，并探索从Snitch SSR/FREP模式到RVV向量指令的映射策略。"
     },
     {
-      "gap": "当前工作仅针对单个 Snitch 核心进行评估，未涉及多核间的工作负载划分和更高层次的算子调度问题。",
-      "evidence": "These trends should be taken into account by higher-level tools calling into our compiler when distributing larger workloads between Snitch cores.",
-      "relevance_to_cute": "对 CUTE 工作 3（HBM + 多节点系统架构）有间接关联：当多个 AI-CPU 核心协作执行大规模推理任务时，需设计高层调度策略将工作负载分配到各核心，微内核编译器需提供性能模型供上层调度器参考。"
+      "gap": "内核规模受限于Snitch TCDM（128 KiB软件管理L1缓存），尚未验证在更大输入或涉及多级存储层次时的性能表现",
+      "evidence": "We select shape sizes to fit within the TCDM (Section 2.4) such that our performance measurements are not influenced by the rest of the memory hierarchy. These trends should be taken into account by higher-level tools calling into our compiler when distributing larger workloads between Snitch cores.",
+      "relevance_to_cute": "对CUTE工作3（HBM + 多节点系统）有直接参考价值：当微内核需要跨越L1缓存边界、涉及HBM或多核数据分布时，编译器需考虑更复杂的存储层次感知调度策略。"
+    },
+    {
+      "gap": "当前调度策略依赖Snitch确定性微架构特性，在乱序处理器或具有复杂缓存层次的平台上可能无法直接适用",
+      "evidence": "Snitch's in-order core and software-managed L1 cache make its performance predictable, allowing us to build a simple scheduling pipeline, obviating the need for expensive schedule space exploration.",
+      "relevance_to_cute": "该gap对CUTE工作1（CPU矩阵算力扩展）的编译器设计有重要启发：当目标平台从简单有序核扩展到复杂乱序CPU核时，编译器调度策略需要从确定性静态调度转向更复杂的自适应或探索式调度方法。"
     }
   ],
   "proposal_evidence": {
-    "for_state_of_art": "该论文发表于 CGO 2025（代码生成与优化顶级会议），代表了当前面向 RISC-V 定制加速器的编译器后端研究的最新水平。它提出了突破传统沙漏模型的多层次后端架构，是目前首个基于 MLIR 的、完整捕获加速器特定抽象并采用自包含代码生成方案的编译器后端（论文声称「to the best of our knowledge, our work is the first MLIR-based compiler backend that captures accelerator-specific abstractions and employs a self-contained code generation scheme」），可作为「编译器/算子生成」技术路线的前沿代表。",
-    "for_gap": "该论文揭示了以下研究空白：（1）现有编译器后端（LLVM/GCC）的低级 IR 无法有效建模定制化 ISA 扩展的语义（如隐式内存访问、硬件循环），导致自动生成代码的性能远低于手写汇编（42% vs 90% FPU 利用率）；（2）即使利用 MLIR 高级优化，若最终经过通用后端仍无法发挥硬件特性，证明了在编译器后端层面引入结构化、领域特定抽象的必要性；（3）该工作目前仅覆盖线性代数微内核，未涉及更复杂的算子类型（如超越函数）和多核调度，这为 CUTE 的算子生成和系统级调度工作提供了明确的扩展空间。",
-    "for_feasibility": "该论文的实验数据为 CUTE 工作 2 的可行性提供了重要佐证：（1）通过 MLIR 多层次 IR 方言实现端到端算子编译是可行的，从 linalg DSL 自动生成代码可达 90% FPU 利用率；（2）关键数据：unroll-and-jam 因子为 4（对应 Snitch FPU 的 3 级流水线深度），SSR 消除了 66% 的显式 load/store，Scalar Replacement 带来 4 倍以上性能提升；（3）无溢出寄存器分配方法在 20 个 FP 寄存器和 15 个整数寄存器下即可满足 MatMul 等核心算子的需求，说明 RISC-V 寄存器资源足以支撑高效的矩阵/向量操作编译。"
+    "for_state_of_art": "该论文发表于CGO 2025（编译器优化顶会），代表了当前面向RISC-V自定义加速器的编译器后端技术的最前沿水平。该工作首次在MLIR框架内实现了从高级DSL到RISC-V加速器自定义扩展的端到端多层级编译，突破了传统LLVM后端的沙漏模型限制。论文提出的SSA-based多层级IR设计和渐进式低降方法，为RISC-V生态中自定义扩展的编译器支持提供了新的技术路线，代表了编译器后端领域从通用化向领域特化演进的重要方向。",
+    "for_gap": "该论文揭示了两个重要研究空白：1）现有的编译器后端（如LLVM RISC-V backend）无法有效利用自定义加速器特性，MLIR和Clang流程在Snitch上仅达约42% FPU利用率，说明传统编译器架构在面向RISC-V自定义扩展时存在根本性不足；2）论文的方法仅在单一有序核加速器上验证，未涉及标准RVV向量扩展、矩阵扩展或多级存储层次场景，说明该技术路线在更广泛的RISC-V AI加速场景中的适用性尚未被探索。这些空白直接支撑开题报告对「RISC-V AI扩展编译器支持不足」的gap论证。",
+    "for_feasibility": "该论文提供了关键可行性佐证数据：1）多层级编译器后端可在DNN微内核上达到90% FPU利用率（相比LLVM后端的42%提升超过2倍），证明结构化IR方法在RISC-V加速器上的有效性；2）无溢出寄存器分配在20个FP寄存器和15个整数寄存器约束下成功运行所有测试内核，最大使用量为11/20 FP和12/15整数寄存器，说明该方法在寄存器资源受限环境下可行；3）从linalg DSL到Snitch汇编的完整编译流水线已在xDSL/MLIR框架中实现并开源（Apache 2.0许可证），为CUTE工作复用和扩展该基础设施提供了直接可行的起点。"
   }
 }

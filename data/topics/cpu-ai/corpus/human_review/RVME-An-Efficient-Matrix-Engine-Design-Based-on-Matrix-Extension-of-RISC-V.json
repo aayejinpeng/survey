@@ -1,0 +1,52 @@
+{
+  "title": "RVME: An Efficient Matrix Engine Design Based on Matrix Extension of RISC-V",
+  "authors": "Wanqi Chen",
+  "year": 2025,
+  "venue": "ICCD",
+  "doi": "10.1109/ICCD65941.2025.00092",
+  "url": "",
+  "theme_primary": "1. CPU-side AI acceleration / in-core accelerator",
+  "theme_secondary": "2. Matrix extension / AMX / SME",
+  "workstream_fit": "1",
+  "research_purpose": "本文提出RVME，一种基于RISC-V矩阵扩展的高效矩阵引擎，作为CPU协处理器设计，旨在回应现有CPU矩阵扩展微架构细节未公开、研究者缺少早期仿真工具的问题；同时提出cache-aware、loop-adaptive的映射框架以优化GEMM工作负载的Energy-Delay Product。",
+  "research_significance": "该工作提供了一个基于RISC-V矩阵扩展的CPU协处理器公开设计案例，并配套基于gem5的可配置仿真平台，有助于开展矩阵扩展的早期设计探索。论文中的bubble-free OPA方案和映射框架展示了在CPU侧执行GEMM时兼顾性能与效率的设计路径，实验也报告了较高的速度提升和能效-面积效率。",
+  "key_technique": "RVME是一种解耦式CPU矩阵协处理器，集成独立的matrix cache、Matrix Load/Store Unit、multi-bank matrix register file、ROB，以及四个并行的8×8 PE Outer Product Arrays。论文用OPA替代传统systolic array，通过multicast数据供给和寄存器交替输出来减少停顿，并指出在k≥m时可实现bubble-free执行。映射方面，作者提出cache-aware、loop-adaptive框架，对K-inner、M-inner、N-inner三类数据流进行搜索，以优化GEMM workload的Energy-Delay Product。",
+  "key_results": "在28nm工艺、1GHz频率下，RVME总面积为0.63mm²，真实GEMM工作负载下平均功耗为0.377W。与基于RVV的向量设计相比，在相同256-bit数据通路宽度下，RVME实现了最高13.4倍加速和超过21.7倍的指令数缩减；在Transformer-base上速度提升约7.9-9.4倍，在ResNet-50上约8.5-13.4倍。论文还报告了586 GOPS/mm²的峰值面积效率、527.9 GOPS/mm²的平均面积效率，以及1921.4 GOPS/W/mm²的峰值能效-面积效率。",
+  "is_close_baseline_to_cute": true,
+  "contributions": [
+    {
+      "point": "提出RVME矩阵引擎架构，采用bubble-free Outer Product Arrays（OPA）作为基于RISC-V矩阵扩展的CPU协处理器，并提供基于gem5的可配置开源仿真器。",
+      "evidence": "We propose RVME, an efficient matrix engine adopting bubble-free OPAs based on a matrix extension of RISC-V, along with a configurable open-source1 simulator built on gem5."
+    },
+    {
+      "point": "提出cache-aware、loop-adaptive的映射框架，为不同GEMM工作负载自动搜索较优映射并通过专用API暴露执行方式。",
+      "evidence": "We present a cache-aware, loop-adaptive mapping framework that automatically finds optimal mappings for diverse GEMM workloads, exposed through dedicated APIs for efficient hardware execution."
+    },
+    {
+      "point": "相比基于RVV的向量设计，RVME实现了最高13.4倍加速、超过21.7倍的指令数减少，并报告了1921.4 GOPS/W/mm²的峰值能效-面积效率。",
+      "evidence": "Experimental results show that RVME achieves up to 13.4× speedup and over 21.7× instruction count reduction compared to a RISC-V Vector Extension (RVV)-based design. Additionally, it delivers a peak energy-area efficiency of 1921.4 GOPS/W/mm2, surpassing state-of-the-art DNN accelerators by more than 6×."
+    }
+  ],
+  "gap_identified": [
+    {
+      "gap": "论文当前仅明确支持A/B为INT8、C为INT32，并未给出BF16、FP16、FP8或更低比特量化格式的实现与评估。",
+      "evidence": "Matrices A and B are defined as INT8, and matrix C is defined as INT32. Sufficient encoding space is reserved for additional data types in the future.",
+      "relevance_to_cute": "这直接提示CUTE在CPU矩阵扩展方向上可进一步关注多精度和混合精度支持。"
+    },
+    {
+      "gap": "在MobileNetV2这类较小GEMM场景中，加速比明显低于其他模型，反映出OPA和MRF在小矩阵负载下的利用率仍受限制。",
+      "evidence": "This is particularly evident from the conv2d_1 layer to the bottleneck_2 layer, where the observed speedup ranges from 4.9× to 6.3×.",
+      "relevance_to_cute": "CUTE若面向通用AI工作负载，需要考虑小尺寸矩阵时的数据供给与阵列利用率优化。"
+    },
+    {
+      "gap": "片上存储容量受限导致DRAM访问功耗占比较高，说明存储层次仍是该类CPU矩阵协处理器的关键瓶颈。",
+      "evidence": "The power breakdown reveals that DRAM accesses constitute 48.5% of this total, a significant portion attributable to the constrained on-chip memory capacity.",
+      "relevance_to_cute": "这为CUTE中的scratchpad/缓存层次设计与带宽优化提供了直接的量化依据。"
+    }
+  ],
+  "proposal_evidence": {
+    "for_feasibility": "论文给出的实验结果可作为CUTE方向的可行性证据：在与RVV基线相同的256-bit数据通路宽度下，RVME仍实现了最高13.4倍加速和超过21.7倍的指令数缩减；在28nm、1GHz条件下总面积为0.63mm²、平均功耗为0.377W；同时，OPA相较传统SA在文中报告了33%的功耗下降和4.1%的面积开销增加，说明CPU侧矩阵协处理器在性能、面积和功耗之间具备可实现的设计空间。",
+    "for_gap": "论文能够直接支撑的研究缺口主要有两点：其一，当前实现只明确支持INT8/INT32数据类型，尚未覆盖更适合现代AI推理的多精度格式；其二，DRAM访问占总功耗48.5%，显示片上存储容量与数据搬运仍是关键约束。这两点可直接支撑后续在多精度支持和存储层次优化上的研究必要性。",
+    "for_state_of_art": "该论文可作为CPU侧矩阵扩展研究的一篇代表性学术工作引用。文中将RVME置于Arm SME、Intel AMX、IBM MMA以及RISC-V AME的背景下讨论，并给出了一个基于RISC-V矩阵扩展的公开协处理器设计、映射框架和实验评估，因此适合用于说明CPU矩阵扩展微架构与GEMM映射优化方向的研究现状。"
+  }
+}

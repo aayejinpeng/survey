@@ -1,0 +1,48 @@
+{
+  "title": "TCP: A Tensor Contraction Processor for AI Workloads Industrial Product",
+  "authors": "Hanjoon Kim",
+  "year": 2024,
+  "venue": "ISCA",
+  "doi": "10.1109/ISCA59077.2024.00069",
+  "url": "",
+  "theme_primary": "8. Memory hierarchy / scratchpad / dataflow / systolic",
+  "theme_secondary": "5. LLM / Transformer / inference acceleration",
+  "workstream_fit": "1",
+  "research_purpose": "提出一种以张量缩并（tensor contraction）而非固定尺寸矩阵乘法为基本硬件原语的 AI 加速器架构，通过挖掘张量运算中的并行性和数据局部性来提升 AI 工作负载的效率与性能。该处理器采用粗粒度 PE，并支持将其组织为单一大型计算单元或多个独立小型计算单元，以适应不同张量形状。",
+  "research_significance": "该工作展示了从固定矩阵乘法原语转向 tensor contraction 原语的工业级 AI 加速器设计思路，对理解如何在硬件层面支持多样化张量计算具有参考价值。论文报告 TCP 已在 TSMC 5nm 工艺下完成设计与制造，作为 Furiosa AI 的第二代产品并计划于 2024 年 8 月开始商业化。在 LLaMA-2 7B 上，其 performance per watt 分别达到 H100 的 2.7 倍和 L40s 的 4.1 倍，说明该路线在能效上具有竞争力。",
+  "key_technique": "TCP 以 tensor contraction 而非固定尺寸矩阵乘法为基础硬件原语。其架构围绕 coarse-grained PE/TU、片上 scratchpad、fetch network 和编译器协同设计：DM slice 作为 scratchpad，每个 slice 由 16 个 bank 组成并提供最高 128GB/s SRAM 带宽；slice 具有主/子两个执行上下文，可在主上下文执行张量计算时由子上下文并行处理其他操作；fetch network 支持灵活连接计算单元并提升数据复用；编译器则围绕张量形状、循环顺序以及 lowered shape/tactic 的选择探索映射空间。",
+  "key_results": "TCP 芯片采用 TSMC 5nm 工艺，面积 632.1mm²，150W TDP，配备 256MB SRAM 和 48GB HBM3（1.5TB/s），提供 256 TFLOPS BF16、512 TFLOPS FP8、512 TOPS INT8 和 1024 TOPS INT4。论文在 LLaMA-2 7B 上报告其 performance per watt 分别为 H100 的 2.7 倍、L40s 的 4.1 倍；在 batch=32、输入/输出长度均为 2K 的设置下，表 II 给出的 perf/Watt 为 8.62 tokens/sec/W。对于单 batch prefill，论文还报告相较 L40s 在 L=128 和 L=2048 时延迟分别低 41% 和 11%。",
+  "is_close_baseline_to_cute": true,
+  "contributions": [
+    {
+      "point": "提出以张量缩并而非固定尺寸矩阵乘法为基本计算原语的处理器架构，并以此挖掘张量运算中的并行性与数据局部性。",
+      "evidence": "Instead of matrix multiplications, we use tensor contraction as a primitive. This approach not only enables massively parallel operations but also incorporates pipelining over the time axis, similar to vector processors."
+    },
+    {
+      "point": "设计了基于电路交换的 fetch network，并结合广播与 buffer reuse 提升跨计算单元与片内的数据复用。",
+      "evidence": "We propose a circuit switch-based fetch network to flexibly connect compute units to enable inter-compute unit data reuse. We also exploit input broadcast to multiple contraction engines and input buffer based reuse to further exploit reuse behavior in tensor contraction."
+    },
+    {
+      "point": "设计了可灵活配置的粗粒度 PE，使其可作为单一大型计算单元或多个独立小型计算单元使用，以适应不同张量形状。",
+      "evidence": "The PEs are designed to be flexible enough to be utilized as a large-scale single unit or a set of small independent compute units."
+    },
+    {
+      "point": "开发了端到端编译器，围绕张量形状、循环顺序和底层架构共同探索张量缩并映射设计空间，并在调度中结合启发式、ILP 与遗传算法。",
+      "evidence": "Our compiler explores the design space of tensor contractions considering tensor shapes and the order of their associated loop operations as well as the underlying accelerator architecture."
+    },
+    {
+      "point": "在 TSMC 5nm 工艺下完成 TCP 芯片设计与制造，集成 256MB SRAM 和 48GB HBM3，提供 256/512/1024 TOPS（BF16/FP8 or INT8/INT4）算力，并计划商业化。",
+      "evidence": "A TCP chip was designed and fabricated in 5nm technology as the second-generation product of Furiosa AI, offering 256/512/1024 TOPS (BF16/FP8 or INT8/INT4) with 256 MB SRAM and 1.5 TB/s 48 GB HBM3 under 150 W TDP."
+    },
+    {
+      "point": "CPU负责调度，使用异步编程模型",
+      "evidence": ""
+    }
+  ],
+  "gap_identified": [],
+  "proposal_evidence": {
+    "for_feasibility": "该论文对 CUTE 可行性论证的直接支撑在于：1）作者在真实芯片上展示了 tensor contraction 架构与高带宽片上/片外存储协同的可实现性；2）在 LLaMA-2 7B 上，TCP 报告了相对 H100 和 L40s 更高的 performance per watt；3）论文明确展示了双执行上下文、16-bank DM slice 与 fetch network 等机制如何配合数据复用与访存隐藏。就提案写作而言，这些结果可作为“专用张量数据流设计能够带来能效收益”的证据，但不应额外引入原文未给出的利用率或容量细节。",
+    "for_gap": "该论文直接揭示了两个明确问题：一是张量缩并映射空间复杂，需要围绕 lowered shape 与 tactic 进行复杂搜索；二是长序列 attention 在片上 SRAM 容量受限时会带来额外访存与利用率下降。论文本身没有讨论如何在通用 CPU 或开放 ISA 上复现同类能力，因此这部分更适合作为 CUTE 的后续研究切入点，而不是论文已证明的结论。",
+    "for_state_of_art": "该论文是 ISCA 2024 工业轨道的产品级工作，展示了基于 tensor contraction 的 AI 加速器路线。论文报告 TCP 采用 TSMC 5nm 工艺，集成 256MB SRAM 与 48GB HBM3，在 150W TDP 下提供最高 1024 TOPS（INT4）/512 TFLOPS（FP8），并计划于 2024 年 8 月开始商业化。在 LLaMA-2 7B 上，论文进一步给出了相对 H100 和 L40s 的 performance-per-watt 优势，因此可作为张量缩并/数据流架构路线的代表性工业参考。"
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "title": "Empowering Vector Architectures for ML: The CAMP Architecture for Matrix Multiplication",
+  "authors": "Mohammadreza Esmali Nojehdeh, Hossein Mokhtarnia, Julian Pavon, Narcis Rodas, Roger Figueras Bagué, Enrico Reggiani, Miquel Moreto, Osman Unsal, Adrián Cristal, Eduard Ayguadé",
+  "year": 2025,
+  "venue": "MICRO",
+  "doi": "10.1145/3725843.3760547",
+  "url": "",
+  "theme_primary": "3. Vector extension / RVV / vector AI enhancement",
+  "theme_secondary": "6. Quantization / mixed precision / FP8 / BF16 / block scale / mx",
+  "workstream_fit": "2",
+  "research_purpose": "提出 Cartesian Accumulative Matrix Pipeline（CAMP）微架构，通过在向量处理单元中引入 hybrid multiplier 以及 intra-lane / inter-lane accumulator 机制，增强向量架构和 SIMD 单元对 4-bit/8-bit 量化矩阵乘法的支持能力。",
+  "research_significance": "论文指出现有向量架构与 SIMD 支持单元难以高效处理量化矩阵乘法，而 CAMP 在较小面积开销下显著提升性能并改善能效。该工作表明，在 CPU/向量核内部加入面向低精度矩阵乘的专用轻量级执行结构，是一条有潜力的技术路径。",
+  "key_technique": "CAMP 的核心是将 hybrid multiplier、intra-lane accumulators 和 inter-lane accumulators 结合到向量/ SIMD 数据通路中，用外积式计算替代传统量化矩阵乘中大量 widening、packing 和多条 multiply-add 指令序列。论文强调其设计受 GotoBLAS 等高性能库启发，针对 byte 与 sub-byte 矩阵乘法构造更贴合 outer-product 的硬件执行路径。当前实现中，每个 lane 使用 32 个乘法器在一个周期内计算完整 outer-product，并通过 16 个 intra-lane 与 16 个共享 inter-lane accumulators 进行归约。",
+  "key_results": "论文报告 CAMP 在 ARM A64FX 与 RISC-V edge SoC 两个平台上，对应基线最高分别实现 17× 和 23× 的矩阵乘性能提升。综合与 PnR 结果显示，CAMP 在 ARM 7nm 与 RISC-V 22nm 设计点上的面积开销分别为 1% 和 4%；其中 RISC-V 22nm 实现面积为 0.0782 mm²，目标频率 1 GHz，功耗开销为 7%。在 RISC-V 卷积评估中，8-bit 和 4-bit 版本分别达到 13 GOPS 和 23 GOPS，对应能效为 0.7 TOPS/W 和 1.2 TOPS/W。与 ARM MMLA 对比时，Figure 22 显示 CAMP-4bit 在最大矩阵规模点达到 17.4× speedup，而 MMLA 为 8.5×，均以 OpenBLAS 归一化。",
+  "is_close_baseline_to_cute": true,
+  "contributions": [
+    {
+      "point": "提出 CAMP 微架构，将 hybrid multiplier 与 intra-lane / inter-lane accumulators 结合，以高效支持 byte 和 sub-byte 矩阵乘法。",
+      "evidence": "Inspired by highly optimized algorithms such as GotoBLAS [32], our contribution centers on integrating intra-lane and inter-lane accumulators with hybrid multipliers to efficiently handle byte and sub-byte matrix multiplication."
+    },
+    {
+      "point": "为 ARM-SVE 和 RISC-V 引入 CAMP 自定义指令，并与 GeMM/BLAS 风格软件栈协同，以加速矩阵乘累加。",
+      "evidence": "Introduction of custom instructions to ARM-SVE and RISC-V to expedite matrix multiply-accumulate operations, significantly enhancing GeMM performance."
+    },
+    {
+      "point": "显著降低矩阵乘法中的功能单元繁忙率与 stall，使向量架构中的量化 GeMM 更接近计算资源充分利用。",
+      "evidence": "Through the implementation of the CAMP architecture, the functional unit busy rate for matrix multiplication is reduced from 80% to under 10%, with functional unit stalls becoming negligible."
+    },
+    {
+      "point": "在 ARM 7nm 与 RISC-V 22nm 两个实现点完成综合与 PnR，面积开销分别仅为 1% 和 4%。是拿自己的版图和其他两个核的公开/半公开的版图放在一起比的，这种比较方法非常好玩。",
+      "evidence": "Furthermore, synthesis and place-and-route (PnR) of the CAMP micro-architecture — using Synopsys ICC2 for the ARM TSMC 7nm (A64FX) and Cadence Innovus for the GlobalFoundries 22nm flow (RISC-V SoC)—add only 1% and 4% area overhead, respectively, compared to the baseline designs."
+    },
+    {
+      "point": "在多类 LLM 与 CNN 的矩阵乘场景中验证了 CAMP 指令的有效性，相对 OpenBLAS 和 gemmlowp 展示出显著平均加速。比较的图片也非常规整且好玩。",
+      "evidence": "Experimental results confirm the efficiency of the proposed instruction across all network layers. The proposed method achieves significant speedup, outperforming established libraries like OpenBLAS and gemmlowp by factors of 11× and 6× on average, respectively."
+    }
+  ],
+  "gap_identified": [
+    {
+      "gap": "当前 CAMP 原型只实现了 4/8->32-bit 乘累加支持，说明其设计重点仍集中在量化整数矩阵乘，而非覆盖所有位宽的一般乘法路径。同时没有涵盖新启的MXFP/MFINT等块浮点格式的支持",
+      "evidence": "Since our focus is on quantized data, 64-bit support was not implemented in the current CAMP prototype; this mode is instead handled by the scalar unit.",
+      "relevance_to_cute": "CUTE 若希望同时覆盖高精度与低精度矩阵计算，需要考虑是否沿用 CAMP 的层次化设计并进一步扩展到更高位宽。"
+    },
+    {
+      "gap": "论文的 ARM 侧性能评估主要基于 gem5 模拟器而非真实 CAMP 硬件实现，硬件效果仍缺少实物系统级验证。",
+      "evidence": "Then, matrix multiplication with CAMP, and MMLA instruction was performed on the gem5 simulator, and Yitan, respectively.",
+      "relevance_to_cute": "CUTE 若计划流片或 FPGA/硅后验证，需要补上仿真之外的实测路径，以增强面积、功耗和性能结论的说服力。"
+    },
+    {
+      "gap": "为获得单周期 full outer-product，CAMP 采用较激进的乘法器配置，论文也指出这带来面积代价，说明其在面积与并行度之间仍有可继续优化的空间。",
+      "evidence": "In the current implementation, each lane includes 32 multipliers to compute a full outer-product in one cycle, offering peak parallelism at the cost of increased area.",
+      "relevance_to_cute": "CUTE 在设计核内矩阵扩展时可参考这一 trade-off，探索复用式 datapath、时分复用或更灵活的数据流，以平衡面积与吞吐。"
+    },
+    {
+      "gap": "当前评估聚焦推理中的 self-attention、feed-forward 和 CNN 卷积对应的矩阵乘，未覆盖训练工作负载。支持的仍然是全矩阵乘的比较，没有针对完整的workload进行评估和比较，没有暴露出和向量单元之间进行配合时，对向量寄存器带来的额外影响。",
+      "evidence": "The matrix multiplications in the self-attention and feed-forward layers are specifically considered for this evaluation, focusing solely on inference operations rather than training.",
+      "relevance_to_cute": "若 CUTE 后续考虑训练或更广泛的 AI 算子支持，需要额外评估其在反向传播和更复杂数据通路下的适用性。"
+    }
+  ],
+  "proposal_evidence": {
+    "for_feasibility": "论文给出了较强的实现可行性证据：RISC-V 22nm FDX 设计点目标频率为 1 GHz，CAMP 微架构面积为 0.0782 mm²，对整芯片面积开销为 4%；RISC-V 侧 8-bit/4-bit 卷积吞吐量分别达到 13 GOPS 和 23 GOPS，对应能效为 0.7 TOPS/W 和 1.2 TOPS/W。论文还指出矩阵乘法的 functional unit busy rate 可由 80% 降至 10% 以下，说明这种核内矩阵扩展路线在面积、时序和资源利用率上具有现实可行性。",
+    "for_gap": "论文明确指出，现有 IBM MMA、Intel VNNI 和 Arm MMLA 等 CPU 侧矩阵/AI 指令虽然支持 AI inference，但“still lack dedicated integer units to efficiently handle low-precision data, which limits the potential benefits of quantization”。这直接揭示了现有向量/矩阵扩展在低精度量化矩阵乘方面的硬件支持缺口，也正是 CAMP 试图解决的问题。",
+    "for_state_of_art": "该文发表于 MICRO 2025，代表了在向量架构和 SIMD-support unit 内部，通过轻量级微架构与 ISA 协同增强量化矩阵乘法的一类前沿方案。论文不仅与 OpenBLAS、gemmlowp 等软件基线比较，还在文中与 MMLA、VNNI、MMA 及其他低比特卷积/矩阵工作进行对照，显示 CAMP 在低精度矩阵乘吞吐、能效和面积开销之间取得了很有竞争力的平衡。"
+  }
+}

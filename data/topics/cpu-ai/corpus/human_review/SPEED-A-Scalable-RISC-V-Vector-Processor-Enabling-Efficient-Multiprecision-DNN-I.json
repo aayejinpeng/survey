@@ -1,0 +1,61 @@
+{
+  "title": "SPEED: A Scalable RISC-V Vector Processor Enabling Efficient Multiprecision DNN Inference",
+  "authors": "Chuanning Wang, Chao Fang, Xiao Wu, Zhongfeng Wang, Jun Lin",
+  "year": 2025,
+  "venue": "IEEE-TVLSI",
+  "doi": "10.1109/TVLSI.2024.3466224",
+  "url": "",
+  "theme_primary": "3. Vector extension / RVV / vector AI enhancement",
+  "theme_secondary": "6. Quantization / mixed precision / FP8 / BF16 / block scale / mx",
+  "workstream_fit": "2",
+  "research_purpose": "设计一款名为 SPEED 的可扩展 RISC-V 向量处理器，通过定制化指令、可重构多精度张量单元（MPTU）和混合数据流映射方法，实现从 4-bit 到 16-bit 的高效多精度 DNN 推理，解决现有 RVV 处理器在指令复杂度、并行处理能力和数据流映射方面的不足。",
+  "research_significance": "该工作面向资源受限边缘场景下的多精度 DNN 推理，围绕定制 RVV 指令、MPTU 和混合数据流给出了一体化设计。论文在 TSMC 28nm 上实现了 737.9 GOPS 峰值吞吐量和 1383.4 GOPS/W 能效（4-bit），并报告了相对既有 RISC-V 处理器在 8-bit 和最优整数条件下的面积效率提升，说明其在 RVV 框架内提升 AI 推理效率方面具有较强参考价值。",
+  "key_technique": "SPEED 在 RVV ISA 基础上使用预留用户编码空间引入四类定制指令：VSACFG 用于配置算子相关信息，VSALD 用于访存，VSAM 和 VSAC 用于算术计算。其核心计算单元 MPTU 由参数化 PE 阵列构成，每个 PE 含 16 个 4-bit 乘法器，可重构地执行 16-bit、8-bit 和 4-bit MAC 操作，以匹配不同 MP-DNN 算子的并行需求。体系结构层面，论文还为不同类型算子采用混合数据流映射方法，以提升数据复用并降低执行延迟与片外传输开销。",
+  "key_results": "SPEED 在 TSMC 28nm 上综合，目标频率为 1.05 GHz；4-bit 算子峰值吞吐量为 737.9 GOPS，能效为 1383.4 GOPS/W。相较 Ara，SPEED 在 DNN 基准上平均提升 4.8×（16-bit）和 11.8×（8-bit），并在 4-bit 推理中达到最高 90.67 ops/cycle，较 Ara 最优结果高 22.22×。与现有 RISC-V 处理器相比，SPEED 在最优整数条件下的吞吐提升最高可达 13.8×，面积效率提升为 8.2∼18.5×；在 8-bit 条件下面积效率提升为 5.9∼26.9×。此外，单 lane 相较标准 Ara lane 面积减少 45%，功耗降低 69%。",
+  "is_close_baseline_to_cute": true,
+  "contributions": [
+    {
+      "point": "提出基于 RVV 扩展的定制化向量指令集（VSACFG/VSALD/VSAM/VSAC），利用 RISC-V 预留用户编码空间支持 4-16 bit 多精度操作，并显著减少指令数量和寄存器占用。",
+      "evidence": "By employing customized vector instructions tailored to specific operators, SPEED achieves a significant efficiency improvement compared with Ara. In this case, SPEED utilizes 46% fewer instructions and 50% fewer registers, leading to a 1.4× throughput boost over Ara."
+    },
+    {
+      "point": "设计了可参数化配置的多精度张量单元（MPTU），通过可重构并行度在不同精度下复用乘法器资源，以匹配多种 MP-DNN 算子的计算模式。",
+      "evidence": "The proposed PE contains 16 4-bit multipliers, which can perform one set of 16-bit multiply-accumulate (MAC) operations, four sets of 8-bit MAC operations, and 16 sets of 4-bit MAC operations."
+    },
+    {
+      "point": "提出混合数据流映射方法，针对不同 DNN 算子选择更合适的数据调度策略，以提升数据复用并改善 DNN 基准上的平均吞吐。",
+      "evidence": "Benefiting from the proposed mixed dataflow mapping method, SPEED improves average throughput by 4.8× and 11.8× over Ara [32] when evaluated on DNN benchmarks at 16- and 8-bit precisions, respectively."
+    },
+    {
+      "point": "MPTU 仅占 lane 面积 12%（总芯片面积 1.7%），但在相关基准上带来显著性能提升，体现出较高面积效率。",
+      "evidence": "Remarkably, the MPTU, occupying only 12% of the lane area equivalent to 1.7% of the total area, delivers a significant 22.22× performance improvement."
+    }
+  ],
+  "gap_identified": [
+    {
+      "gap": "论文聚焦边缘端 MP-DNN 推理，未讨论更大规模系统或服务端部署场景，因此其跨系统扩展性仍有待后续工作验证。",
+      "evidence": "SPEED aims to improve the area efficiency and inference throughput of MP-DNN deployments within the constraints of edge computing scenarios.",
+      "relevance_to_cute": "可作为 CUTE 在更大规模系统、存储层次和封装层面继续扩展的参考起点，但这属于基于论文范围的保守外推。"
+    },
+    {
+      "gap": "SPEED 通过移除 FPU 提升面积和功耗效率，说明该设计主要面向整数多精度推理，未覆盖浮点推理需求。对后续的新兴的MXFP等LLM的支持落后了。",
+      "evidence": "As shown in Table II, the SPEED lane achieves a 45% reduction in area and a 69% decrease in power consumption than a standard Ara lane, primarily due to the float-point processing unit (FPU) removal and the incorporation of MPTU with high area efficiency and less power consumption.",
+      "relevance_to_cute": "若 CUTE 需要支持 BF16 等格式，可参考 SPEED 的核内张量单元思路，同时补足浮点数据通路。"
+    },
+    {
+      "gap": "论文对 Transformer 类模型进行了验证，但其 MM 数据流在该场景下的收益明显低于部分 CNN 场景，说明面向更大矩阵计算的调度空间仍然存在。",
+      "evidence": "For Transformer-based models, such as ViT-Tiny and ViT/B-16, SPEED employs an MM dataflow strategy to deliver a performance boost of 1.18× to 1.46× at 16-bit precision and 2.00× to 2.13× at 8-bit precision, respectively.",
+      "relevance_to_cute": "这为 CUTE 在矩阵数据流和算子映射方面提供了明确切入点，尤其适合继续优化大矩阵工作负载。"
+    },
+    {
+      "gap": "论文的软件使用方式依赖内联汇编与定制工具链，未展示更高层次的自动算子生成或编译抽象。",
+      "evidence": "At the software level, these customized instructions, combined with official RVV instructions, can be written using inline assembly code within C/C++ programs and compiled with the developed RISC-V GNU/LLVM toolchain [48], [49] for program debugging and assembly code generation.",
+      "relevance_to_cute": "CUTE 可在此基础上补足编译器后端、算子模板化生成和自动映射工具链。"
+    }
+  ],
+  "proposal_evidence": {
+    "for_feasibility": "SPEED 的结果表明，在 RVV lane 内集成小型多精度张量单元是可行的：MPTU 仅占 lane 面积 12%（总面积约 1.7%），却带来 22.22× 的性能提升。同时，论文报告了 4-bit 条件下 737.9 GOPS 峰值吞吐和 1383.4 GOPS/W 能效，说明该方向在面积与能效上具有较强潜力。混合数据流方法也展示了“maximize data reuse, significantly reducing execution latency and the size of off-chip transferred data”的效果，可为后续设计提供方法参考。",
+    "for_gap": "SPEED 主要覆盖边缘端整数 MP-DNN 推理，论文没有展开更大规模系统、浮点格式支持或更高层软件自动化等问题。因此，这些方向更适合作为基于论文边界识别出的后续扩展空间，而不是论文已经直接证明的缺口结论。",
+    "for_state_of_art": "SPEED 是 RVV 多精度 DNN 推理方向中具有代表性的设计之一。论文通过定制 RVV 指令、MPTU 和混合数据流协同优化，在 28nm 工艺下实现了较高吞吐、能效和面积效率，并与 Yun、Vega、XPULPNN、DARKSIDE、Dustin 等 RISC-V 处理器进行了系统比较。"
+  }
+}

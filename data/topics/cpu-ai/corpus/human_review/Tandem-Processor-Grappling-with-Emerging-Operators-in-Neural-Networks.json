@@ -1,0 +1,61 @@
+{
+  "title": "Tandem Processor: Grappling with Emerging Operators in Neural Networks",
+  "authors": "Soroush Ghodrati, Sean Kinzer, Hanyang Xu, Rohan Mahapatra, Yoonsung Kim, Byung Hoon Ahn, Dong Kai Wang, Lavanya Karthikeyan, Amir Yazdanbakhsh, Jongse Park, Nam Sung Kim, Hadi Esmaeilzadeh",
+  "year": 2024,
+  "venue": "ASPLOS",
+  "doi": "10.1145/3620665.3640365",
+  "url": "",
+  "theme_primary": "8. Memory hierarchy / scratchpad / dataflow / systolic",
+  "theme_secondary": "7. Compiler / tensor IR / operator generation",
+  "workstream_fit": "1",
+  "research_purpose": "本文针对NPU设计中长期被忽视的non-GEMM操作（如element-wise、reduction、transpose等），提出了一种名为Tandem Processor的片上专用可编程SIMD处理器，作为GEMM单元的伴侣处理器，以实现DNN端到端执行的高效加速。",
+  "research_significance": "过去十年NPU研究过度聚焦于GEMM操作优化，导致non-GEMM操作随DNN模型，尤其是语言模型的演进，逐渐成为性能瓶颈。本文系统性分析并量化了non-GEMM操作的运行时开销、类型多样性和结构复杂性增长趋势。Tandem Processor通过在专用性与可编程性之间取得平衡，为未来神经网络加速器中的non-GEMM支持提供了一条有代表性的架构路径。",
+  "key_technique": "Tandem Processor采用去寄存器文件的设计，以软件管理的on-chip scratchpad替代传统向量寄存器文件和cache hierarchy，并通过专门的memory semantics减少load/store相关开销。其前端使用专用的nested-loop执行与strided iterator跟踪机制，以降低循环执行、地址计算和数据访问开销。计算侧仅提供primitive arithmetic/logic vector operations，使复杂non-GEMM算子可以在数学层面保持可编程性；同时处理器与GEMM单元紧耦合，可直接利用OBUF数据通路而非经由FIFO中转。",
+  "key_results": "NPU-Tandem相比dedicated units + off-chip CPU方案平均获得2.7×加速和20.6×能耗降低；相比同资源的Gemmini多核RISC-V方案获得5.9×加速；相比TPU+VPU设计获得2.6×加速和1.4×能耗降低。在iso-TOPs设置下，NPU-Tandem与A100 GPU（TensorRT）端到端性能相当，并在non-GEMM操作上相对A100 CUDA Cores实现3.4×加速。相比Jetson Xavier NX GPU实现4.8×的性能功耗比提升，资源使用量约少12×。后布局面积分析显示ALU面积占56.6%，Interim BUF占29.2%。",
+  "is_close_baseline_to_cute": false,
+  "contributions": [
+    {
+      "point": "对non-GEMM操作进行了全面的特征分析和量化评估，揭示了其在现代DNN中的运行时瓶颈效应",
+      "evidence": "the execution of non-GEMM layers take up 73% of the runtime for EfficientNet for the GPU."
+    },
+    {
+      "point": "提出了一种全新的无寄存器文件（register-file-free）的ISA/微架构，用软件管理的scratchpad替代传统向量寄存器文件和Cache层次",
+      "evidence": "The Tandem Processor replaces the entire vector register file and cache hierarchy with a collection of single-level software-managed on-chip scratchpads."
+    },
+    {
+      "point": "设计了专用的嵌套循环执行机制（Code Repeater）和间接跨步地址计算（Iterator Tables），以降低循环分支与地址计算开销",
+      "evidence": "using conventional loop logic (i.e. conditional branch) incurs on average 70% and 47% runtime overhead for non-GEMM layers and end-to-end DNN execution, respectively."
+    },
+    {
+      "point": "提供了完整的开源RTL实现（FPGA和ASIC可综合）、编译器和后端布局分析，作为GeneSys项目的一部分",
+      "evidence": "We provide the RTL code that is synthesizable both for FPGA and ASIC implementations in addition to the associated compiler as part of the open-source GeneSys project"
+    }
+  ],
+  "gap_identified": [
+    {
+      "gap": "Tandem Processor缺乏对特殊数学函数（如sqrt、exp）的专用硬件支持，相关复杂算子需要通过原语操作组合实现，这会削弱其在BERT/GPT-2等模型上的竞争力。",
+      "evidence": "not having hardware support for special functions causes 0.8× slowdown on average. Having the hardware support and dedicated instructions for special functions provides maximum benefits for VPU for BERT and GPT-2, since complex mathematical operations such as sqrt and exp (for softmax) are heavily used in their structure.",
+      "relevance_to_cute": "该gap与CUTE工作1相关：若CPU侧AI扩展希望覆盖Transformer中的Softmax/LayerNorm等non-GEMM操作，需要评估是否为exp、sqrt等特殊函数提供专门支持。"
+    },
+    {
+      "gap": "GPT-2等大型语言模型的non-GEMM加速受限于存储带宽，导致性能提升不如BERT等模型显著。",
+      "evidence": "Although GPT-2 comprise a large portion of non-GEMMs similar to BERT, the performance of scaled-up Tandem Processor is mainly bounded by the memory bandwidth for this DNN and hence showing relatively lower speedup compared to BERT.",
+      "relevance_to_cute": "该gap与CUTE工作3直接相关：仅优化计算单元不足以充分释放LLM类负载的收益，还需要更高带宽的存储/封装支撑。"
+    },
+    {
+      "gap": "论文采用INT32作为non-GEMM ALU的统一精度选择，但未探索更低精度格式在这些算子上的实现与收益。",
+      "evidence": "To provide sufficient precision for all non-GEMM operators, we use INT32 for the Tandem Processor ALUs.",
+      "relevance_to_cute": "该gap与CUTE工作1中的量化支持相关：未来若要做CPU侧矩阵/向量增强，需要进一步研究FP8、BF16或块浮点在non-GEMM算子中的适用性。"
+    },
+    {
+      "gap": "论文展示了通过整数对应实现复杂算子的方法，但未充分报告这类近似实现的精度-性能权衡。",
+      "evidence": "Therefore, for such complex operations (e.g., Softmax, Sqrt, Gelu) the compiler translates them to an integer-based counterpart [5, 54].",
+      "relevance_to_cute": "该gap与CUTE工作2相关：AI辅助算子生成可用于自动搜索更优的复杂算子整数近似与调度方案。"
+    }
+  ],
+  "proposal_evidence": {
+    "for_feasibility": "论文的实验数据为CUTE相关方向提供了可行性参考：（1）Tandem Processor在32-lane SIMD配置下，相对多种基线实现了显著性能/能效优势，并在iso-TOPs设置下达到与A100 TensorRT相当的端到端性能；（2）论文表明，去除寄存器文件及相关load/store开销、引入专用nested-loop执行，可显著改善non-GEMM执行效率；（3）作者使用INT32作为non-GEMM ALU精度，并通过integer-based counterpart实现Softmax、Sqrt、GeLU等复杂算子，但论文未详细报告精度损失分析。",
+    "for_gap": "论文揭示了几个对CUTE有价值的空白：（1）non-GEMM操作在新一代DNN中可能占据很高运行时比例，例如EfficientNet在GPU上达到73%；（2）现有主流加速路径对复杂non-GEMM的支持仍不充分，容易在special functions、控制流和地址生成上暴露开销；（3）在GPT-2这类模型上，即便计算侧得到增强，整体收益仍可能受制于存储带宽。",
+    "for_state_of_art": "该论文是ASPLOS 2024的代表性工作之一，聚焦NPU端到端执行中长期被忽视的non-GEMM加速问题。其核心价值在于提出了以scratchpad和专用memory semantics为中心的伴侣处理器架构，并通过开源RTL、编译器及系统级对比，展示了这一路径在non-GEMM端到端优化中的代表性。"
+  }
+}

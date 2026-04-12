@@ -1,0 +1,56 @@
+{
+  "title": "Mix-GEMM: Extending RISC-V CPUs for Energy-Efficient Mixed-Precision DNN Inference Using Binary Segmentation",
+  "authors": "Jordi Fornt, Enrico Reggiani, Pau Fontova-Musté, Narcís Rodas, Alessandro Pappalardo, Osman Sabri Unsal, Adrián Cristal Kestelman, Josep Altet, Francesc Moll, Jaume Abella",
+  "year": 2025,
+  "venue": "IEEE-TC",
+  "doi": "10.1109/TC.2024.3500369",
+  "url": "",
+  "theme_primary": "1. CPU-side AI acceleration / in-core accelerator",
+  "theme_secondary": "6. Quantization / mixed precision / FP8 / BF16 / block scale / mx",
+  "workstream_fit": "1",
+  "research_purpose": "提出一种名为 Mix-GEMM 的软硬件协同设计架构，通过 binary segmentation 技术扩展 RISC-V 处理器，使其能够高效执行任意混合精度（8-bit 到 2-bit）的 DNN 推理计算，并以较低面积开销实现高能效的 GEMM 运算。",
+  "research_significance": "该工作针对当前 CPU/ISA 对 sub-byte 与 mixed-precision DNN 计算支持不足的问题，提出了一个可在 RISC-V CPU 内核中实现的低开销扩展方案。论文表明，在双发射 in-order RISC-V 处理器中，该方案可将性能和能效最高分别提升 44× 和 11×，面积开销约 2%，说明其对资源受限边缘 CPU 的低精度 AI 推理具有较强实用价值。",
+  "key_technique": "论文的核心技术是 binary segmentation：通过重排和打包窄整数数据，在现有整数乘法器上实现混合精度向量内积。作者在 CPU 执行级中集成了 μ-engine，包含输入 scratchpad、数据选择与转换逻辑、数据过滤逻辑以及累加 scratchpad，并扩展了 4 条 RISC-V 指令（set、put_a、put_b、get）来驱动计算。软件侧基于 BLIS 构建了优化的 GEMM 库，通过 scratchpad 数据驻留和硬件循环提高数据复用。",
+  "key_results": "论文在 22nm GF22FDX 工艺下实现单发射和双发射 μ-engine，面积分别为 10695 μm² 和 30091 μm²，对总处理器面积开销分别仅为 0.82% 和 2.11%。双发射版本峰值可达到 31.0 GOP/s，并在大矩阵计算中达到理论上限的 93%；相对基线处理器，性能和能效最高分别提升 44× 和 11×。在 8 个主流 DNN/CNN 模型评测中，双发射 Mix-GEMM 达到最高 30 GOP/s 和 1.38 TOP/s/W。论文还给出双发射处理器总功耗约 178 mW，其中 μ-engine 功耗约 8.6 mW，占总功耗约 4.8%。",
+  "is_close_baseline_to_cute": true,
+  "contributions": [
+    {
+      "point": "提出基于 binary segmentation 的 Mix-GEMM 软硬件协同架构，使 RISC-V 处理器能够高效执行 8-bit 到 2-bit 的任意混合精度 DNN GEMM 计算。",
+      "evidence": "By applying binary segmentation, our architecture can scale its throughput by decreasing the data size of the operands, resulting in a flexible approach capable of leveraging state-of-the-art QAT and PTQ to achieve high energy efficiency at a very low cost."
+    },
+    {
+      "point": "将 μ-engine 扩展到双发射 RISC-V 流水线，证明该方案可以在保持相近能效的同时有效提升 GEMM 吞吐。",
+      "evidence": "To demonstrate the scalability of Mix-GEMM, we integrate the μ-engine in a dual-issue RISC-V pipeline, effectively doubling the throughput of the GEMM computation while retaining comparable energy efficiency."
+    },
+    {
+      "point": "基于 BLIS 构建优化的软件库，并通过 Acc SP 驻留与硬件循环提高数据复用，降低延迟、指令数和内存流量。",
+      "evidence": "The partial sums stored in the Acc SP are kept stationary during subsequent μ-engine executions, since the Mix-GEMM software library iterates over the kca and kcb dimensions first (see Algorithm 1). In other words, the contents of the Acc SP are extracted only once after the whole μ-kernel is computed. This data reuse helps decrease latency, instruction count and memory traffic."
+    },
+    {
+      "point": "在 8 个主流 DNN/CNN 模型上评估双发射 Mix-GEMM，在窄整数混合精度下达到最高 30 GOP/s 和 1.38 TOP/s/W，并保持较高模型精度。",
+      "evidence": "We benchmark the performance and energy efficiency of the dual-issue Mix-GEMM with eight state-of-the-art DNN models, where we achieve a throughput and energy efficiency of up to 30 GOP/s and 1.38 TOP/sW, respectively, by using narrow-integer mixed-precision, while retaining a high model accuracy."
+    }
+  ],
+  "gap_identified": [
+    {
+      "gap": "论文实验集中在 CNN 模型，虽然作者声称可用于 MLP 和 LLM，但没有给出 Transformer/LLM 的实际实验验证。",
+      "evidence": "Even though we focus our benchmarks on CNN models, our Mix-GEMM architecture can be applied to execute any workload based on matrix-matrix multiplications with quantized data, including Multi-Layer Perceptions (MLPs) and Large Language Models (LLMs) such as GPT-4 [21].",
+      "relevance_to_cute": "这与 CUTE 面向大模型推理的目标直接相关，说明若要把类似 CPU 核内混合精度 GEMM 扩展迁移到 LLM，还需要补齐在注意力和更大矩阵工作负载上的实证。"
+    },
+    {
+      "gap": "论文支持任意层间混合精度，但实验中为简化训练与量化流程，隐藏层采用同构精度配置，尚未充分探索逐层异构精度的潜力。",
+      "evidence": "Even though the Mix-GEMM architecture supports arbitrary mixed-precision (different bit-widths on each layer), we configure all hidden layers of our quantized networks in a homogeneous way to simplify the quantization and training process.",
+      "relevance_to_cute": "这说明硬件能力之外，还需要编译器和量化工具链共同决定层级精度配置；对 CUTE 的矩阵扩展与软件栈协同设计有直接启发。"
+    },
+    {
+      "gap": "论文只在 edge RISC-V in-order processor 上完成单发射和双发射评估，向其他 CPU 微架构场景的泛化尚未验证。没有讨论向量单元的能力。",
+      "evidence": "We experimentally evaluate Mix-GEMM by integrating the extension in an edge RISC-V in-order processor, considering the single- and dual-issue versions.",
+      "relevance_to_cute": "如果 CUTE 未来面向更高性能或不同微架构的 CPU，这一工作提示需要额外研究流水线集成、调度与存储层次配合方式。"
+    }
+  ],
+  "proposal_evidence": {
+    "for_feasibility": "论文直接表明，在 22nm 工艺下，μ-engine 对处理器总面积开销仅为 0.82%（单发射）和 2.11%（双发射），说明在 CPU 核内增加矩阵/GEMM 扩展的硬件成本较低。性能方面，双发射版本峰值达到 31.0 GOP/s，并在大矩阵下达到理论上限的 93%，证明该技术路径能够有效把现有整数乘法资源转化为高吞吐混合精度计算能力。能效方面，论文报告相对基线最高提升 11×，且在 8 个模型评测中达到 1.38 TOP/s/W，足以支撑 CUTE 工作项 1 的工程可行性论证。",
+    "for_gap": "论文揭示了几个对开题有价值的空白：第一，实验仍集中于 CNN，尚未对 LLM/Transformer 等新工作负载进行实际验证；第二，虽然硬件支持任意混合精度，但逐层异构精度配置并未充分探索；第三，评测平台限定在 edge RISC-V in-order processor，向更广泛 CPU 微架构的泛化仍需研究。这些空白可以作为 CUTE 继续扩展到更广工作负载和更完整软硬件栈的切入点。",
+    "for_state_of_art": "该论文是 RISC-V CPU 核内混合精度 GEMM 扩展的代表性工作之一。其特点是通过 binary segmentation 复用现有整数乘法器，而不是依赖独立的大型解耦加速器，从而在保持很低面积开销的同时支持 8-bit 到 2-bit 的任意混合精度组合。论文还与 XpulpNN、MPIC 等相关工作进行了性能、能效和面积效率比较，因此适合作为 CUTE 相关工作的直接对比基线。"
+  }
+}

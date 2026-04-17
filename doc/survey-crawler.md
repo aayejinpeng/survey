@@ -2,7 +2,7 @@
 
 这份文档保留 `survey-crawler` 这个名字，主要是为了兼容之前的入口习惯。
 
-当前推荐使用的不是旧版一体化 `survey_crawler.py`，而是模块化的 6-step pipeline：
+当前推荐使用的是模块化的 pipeline（详见 [README.md](../README.md)）：
 
 1. `fetch_dblp.py`
 2. `enrich_papers.py`
@@ -45,5 +45,5 @@ sync_zotero.py（PDF 同步）
 
 ## 说明
 
-- `survey_crawler.py` 仍在仓库里，但它代表的是旧方案，不是当前主维护路径。
+- 旧版一体化 `survey_crawler.py` 已删除。
 - 当前 Step 1-5 均已实现，Step 6（引用图）计划中。

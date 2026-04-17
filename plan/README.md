@@ -32,7 +32,7 @@ workspace/survey/
   review_server.py       ← Step 4 服务端
   review.html            ← Step 4 前端
   sync_zotero.py         ← Step 5
-  survey_crawler.py      ← (旧版保留)
+  requirements.txt       ← pip 依赖
 
   configs/
     venues.yaml          ← 会议/期刊 + DBLP key
@@ -40,6 +40,7 @@ workspace/survey/
 
   tools/
     s2_fetch.py          ← S2 batch API 客户端
+    arxiv_fetch.py       ← arXiv API 客户端
 
   data/
     db/                  ← 103 CSV，原始 DBLP 数据

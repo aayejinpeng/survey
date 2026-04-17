@@ -2,7 +2,7 @@
 
 `workspace/survey/doc/` 保存面向使用者的文档入口。
 
-当前 pipeline 已经从早期一体化 `survey_crawler.py`，切换为按步骤拆分的模块化流程：
+当前 pipeline 已经从早期一体化方案，切换为按步骤拆分的模块化流程：
 
 1. `fetch_dblp.py`
 2. `enrich_papers.py`
@@ -89,8 +89,15 @@ build_graph.py (计划中)
 
 使用方式：通过 Claude Code CLI 的 skill 功能调用，自动分析论文内容并生成用于 proposal writing 的结构化 JSON 输出。
 
+## 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+依赖列表：PyMuPDF（PDF 解析）、pdfplumber（PDF 文本提取）、flask（Web 审阅服务）。
+
 ## 说明
 
 - 当前文档会优先反映"脚本实际可运行的行为"。
-- `survey_crawler.py` 仍保留在仓库中，但不是当前推荐入口。
 - Step 4 原计划为 `filter_papers.py`，实际改为 Web 审阅方案（`review_server.py`），体验更好。

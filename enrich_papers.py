@@ -43,15 +43,7 @@ sys.path.insert(0, _TOOLS_DIR)
 
 import s2_fetch  # our batch-aware S2 client
 
-_ARXIV_TOOLS_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "..",
-    "sleep-work-agent",
-    "Auto-claude-code-research-in-sleep",
-    "tools",
-)
-sys.path.insert(0, _ARXIV_TOOLS_DIR)
-import arxiv_fetch  # type: ignore[import-untyped]
+import arxiv_fetch  # local tools/arxiv_fetch.py (bootstrapped via _TOOLS_DIR above)
 
 # ---------------------------------------------------------------------------
 # Constants

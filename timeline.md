@@ -3,7 +3,7 @@
 ## 基线
 
 - v1: 按 keyword 搜 S2/arXiv（已废弃）
-- v2: 单文件 survey_crawler.py（耦合，已废弃）
+- v2: 单文件 survey_crawler.py（已删除）
 - **v3: 模块化，每个 step 独立脚本，数据按目录分层**
 
 ## 架构

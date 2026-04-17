@@ -59,7 +59,8 @@ survey/
 ├── paper_review_pipeline.py     # Step 7: 双模型对抗生成 pipeline
 ├── corpus_reviewer.py            # Step 8: Corpus 对照审阅 Web 服务
 ├── tools/
-│   └── s2_fetch.py              # S2 batch API 客户端
+│   ├── s2_fetch.py              # S2 batch API 客户端
+│   └── arxiv_fetch.py           # arXiv API 客户端
 ├── skill/
 │   ├── claude/
 │   │   └── analyze-paper-claude.md  # Claude Code skill: 论文分析
@@ -73,7 +74,7 @@ survey/
 ├── review.html                  # Step 4: Web 审阅前端
 ├── sync_zotero.py               # Step 5: Zotero PDF 同步
 ├── export_dois.py               # Step 5 备选: 导出 DOI 链接手动下载
-├── survey_crawler.py            # (旧版，保留)
+├── requirements.txt             # pip 依赖（PyMuPDF, pdfplumber, flask）
 ├── timeline.md                  # 时间线
 ├── doc/                         # 详细文档
 └── plan/                        # 各 step 设计文档
@@ -542,4 +543,4 @@ Pipeline 具备完善的容错机制：
 - 时间线：[timeline.md](timeline.md)
 - 总体方案：[plan/README.md](plan/README.md)
 - 详细文档：[doc/README.md](doc/README.md)
-- 旧版文档：[doc/survey-crawler.md](doc/survey-crawler.md)
+- 旧版文档：[doc/survey-crawler.md](doc/survey-crawler.md)（已过时，仅供参考）
